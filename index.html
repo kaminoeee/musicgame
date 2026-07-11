@@ -1,418 +1,819 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>eeeAI - Smart Workspace</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-  <style>
-    :root {
-      --bg-dark: #090a0f;
-      --sidebar-bg: #0f121d;
-      --panel-bg: rgba(20, 24, 35, 0.6);
-      --border-color: rgba(0, 195, 255, 0.15);
-      --accent-color: #00c3ff;
-      --accent-gradient: linear-gradient(135deg, #007bff, #00c3ff);
-      --text-main: #f0f4f8;
-    }
+    <meta charset="UTF-8">
+    <title>ぼかせか！</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0; background-color: #0c0c14; color: #fff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex; flex-direction: row; height: 100vh; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
+        }
+        #main-layout { display: flex; width: 100%; height: 100%; padding: 12px; box-sizing: border-box; gap: 15px; }
+        
+        /* 左側：ゲームエリア */
+        #game-area { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; position: relative; }
+        #game-container {
+            position: relative; width: 100%; max-width: 450px; height: 100%; max-height: 650px; background-color: #101020;
+            border: 4px solid #3aa89b; border-radius: 12px; overflow: hidden; box-shadow: 0 0 25px rgba(58, 168, 155, 0.4);
+        }
+        #lanes-container { display: flex; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        
+        .lane {
+            flex: 1; height: 100%; border-right: 1px dashed rgba(255, 255, 255, 0.08); position: relative;
+            background: rgba(255, 255, 255, 0.005); touch-action: none;
+        }
+        .lane:last-child { border-right: none; }
+        .lane:active, .lane.touch-active { background: rgba(0, 255, 240, 0.08); }
+        .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: bold; color: #444466; opacity: 0; }
+        .lane-key-hint.show { opacity: 1; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* 判定ターゲット枠 */
+        #judge-line {
+            position: absolute; bottom: 80px; left: 0; width: 100%; height: 8px;
+            background: linear-gradient(90deg, #00fff0, #3aa89b, #00fff0); 
+            box-shadow: 0 0 18px #00fff0, 0 0 8px rgba(0, 255, 240, 0.8); 
+            pointer-events: none; z-index: 5;
+        }
+        .judge-slot {
+            position: absolute; bottom: 75px; width: 16%; height: 18px;
+            border: 2px solid rgba(0, 255, 240, 0.6); background: rgba(0, 255, 240, 0.15);
+            border-radius: 4px; box-sizing: border-box; pointer-events: none; z-index: 4;
+            box-shadow: inset 0 0 6px rgba(0, 255, 240, 0.5);
+        }
+        #slot-0 { left: 2%; } #slot-1 { left: 22%; } #slot-2 { left: 42%; } #slot-3 { left: 62%; } #slot-4 { left: 82%; }
 
-    body {
-      font-family: "Segoe UI", -apple-system, sans-serif;
-      background: var(--bg-dark);
-      color: var(--text-main);
-      height: 100vh;
-      display: flex;
-      overflow: hidden;
-    }
+        /* ノーツ */
+        .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; pointer-events: none;}
+        .note-normal { background: linear-gradient(90deg, #00fff0, #00aa99); box-shadow: 0 0 8px #00fff0; }
+        .note-flick { background: linear-gradient(90deg, #ff007f, #ff00ff); box-shadow: 0 0 10px #ff007f; height: 14px; border-radius: 10px; }
+        .note-long { background: linear-gradient(90deg, #00ff66, #009933); box-shadow: 0 0 8px #00ff66; }
+        .long-body { position: absolute; width: 80%; left: 10%; background: rgba(0, 255, 102, 0.25); border-left: 2px solid #00ff66; border-right: 2px solid #00ff66; pointer-events: none; }
+        
+        /* UI */
+        #ui-top { position: absolute; top: 15px; left: 20px; font-size: 16px; font-family: monospace; z-index: 15; display: flex; gap: 15px; align-items: center;}
+        #config-trigger { background: #222; border: 1px solid #555; padding: 2px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; color: #ccc; }
+        #combo-container { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 10; }
+        #combo-number { font-size: 54px; font-weight: bold; color: #00fff0; text-shadow: 0 0 12px rgba(0,255,240,0.6); }
+        #judge-text { font-size: 28px; font-weight: bold; height: 35px; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
+        
+        /* オーバーレイ */
+        .overlay-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 20, 0.98); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 20; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+        
+        .song-card { background: #1a1a30; border: 1px solid #444; border-radius: 8px; padding: 10px; width: 85%; margin-bottom: 10px; cursor: pointer; text-align: left; }
+        .song-card.selected { border-color: #00fff0; background: #202045; }
+        .diff-selector { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
+        .diff-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; background: #333; color: #aaa; cursor: pointer; }
+        .diff-btn.active[data-diff="easy"] { background: #00ff66; color: #000; }
+        .diff-btn.active[data-diff="normal"] { background: #00fff0; color: #000; }
+        .diff-btn.active[data-diff="hard"] { background: #ff007f; color: #fff; }
 
-    /* ーーー サイドバー（複数チャット管理） ーーー */
-    .sidebar {
-      width: 260px;
-      background: var(--sidebar-bg);
-      border-right: 1px solid var(--border-color);
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      gap: 16px;
-      z-index: 20;
-    }
+        #config-overlay { display: none; z-index: 30; background: rgba(5,5,10,0.95); }
 
-    .new-chat-btn {
-      background: rgba(0, 195, 255, 0.1);
-      border: 1px dashed var(--accent-color);
-      color: #fff;
-      padding: 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: all 0.2s;
-      text-align: center;
-    }
-    .new-chat-btn:hover { background: var(--accent-gradient); transform: translateY(-1px); }
+        /* 右側：エディタ */
+        #editor-panel {
+            display: none; width: 500px; background-color: #141424; border: 2px solid #ff007f;
+            border-radius: 12px; padding: 12px; box-sizing: border-box;
+            flex-direction: column; box-shadow: 0 0 20px rgba(255, 0, 127, 0.15);
+            overflow-y: auto;
+        }
+        .panel-section { background: #1b1b32; padding: 8px; border-radius: 6px; margin-bottom: 8px; }
+        .section-title { color: #ff007f; font-size: 11px; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        
+        .palette-group { display: flex; gap: 4px; }
+        .palette-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: 2px solid transparent; cursor: pointer; background: #242440; color: #fff; }
+        .palette-btn.active[data-type="normal"] { border-color: #00fff0; background: #003344; }
+        .palette-btn.active[data-type="flick"] { border-color: #ff007f; background: #440022; }
+        .palette-btn.active[data-type="long-start"] { border-color: #00ff66; background: #003311; }
+        .palette-btn.active[data-type="long-end"] { border-color: #aaff00; background: #223300; }
 
-    .chat-list {
-      flex: 1;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+        /* タイムライン */
+        #timeline-container { flex: 1; background: #080810; border: 1px solid #333; border-radius: 6px; position: relative; overflow-y: scroll; min-height: 150px; }
+        #timeline-grid { position: relative; width: 100%; height: 7200px; background: #080812; }
+        
+        .timeline-line {
+            position: absolute; left: 0; width: 100%; border-bottom: 1px solid #1f1f35; color: #444666;
+            font-size: 9px; padding-left: 4px; box-sizing: border-box; pointer-events: none;
+        }
+        .timeline-line.major { border-bottom: 1px dashed #444477; color: #6666bb; font-weight: bold; }
 
-    .chat-item {
-      padding: 10px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 14px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      transition: background 0.2s;
-      color: #ccc;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .chat-item:hover, .chat-item.active {
-      background: rgba(255, 255, 255, 0.05);
-      color: #fff;
-    }
-    .chat-item.active {
-      border-left: 3px solid var(--accent-color);
-      background: rgba(0, 195, 255, 0.05);
-    }
-    .delete-chat {
-      font-size: 12px;
-      color: #ff4a4a;
-      opacity: 0;
-      cursor: pointer;
-    }
-    .chat-item:hover .delete-chat { opacity: 1; }
+        .timeline-note { position: absolute; height: 14px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; color: #000; width: 15%; z-index: 6; }
+        .tl-normal { background: #00fff0; }
+        .tl-flick { background: #ff007f; }
+        .tl-long-start { background: #00ff66; }
+        .tl-long-end { background: #aaff00; }
+        .tl-body-line { position: absolute; width: 4px; background: rgba(0, 255, 102, 0.4); pointer-events: none; transform: translateX(6px); z-index: 5; }
 
-    /* ーーー メインコンテンツエリア ーーー */
-    .main-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      background: radial-gradient(circle at 50% 50%, #121625, var(--bg-dark) 80%);
-    }
-
-    .header {
-      background: rgba(9, 10, 15, 0.8);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-color);
-      padding: 14px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .brand { font-size: 20px; font-weight: 800; letter-spacing: 2px; text-shadow: 0 0 10px rgba(0, 195, 255, 0.6); }
-
-    /* モード切り替えスイッチ */
-    .mode-container { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-    .switch {
-      position: relative; display: inline-block; width: 44px; height: 22px;
-    }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #333; border-radius: 22px; transition: .3s;
-    }
-    .slider:before {
-      position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
-      background-color: white; border-radius: 50%; transition: .3s;
-    }
-    input:checked + .slider { background: var(--accent-gradient); }
-    input:checked + .slider:before { transform: translateX(22px); }
-
-    .chat-box {
-      flex: 1; overflow-y: auto; padding: 40px 15%; display: flex; flex-direction: column; gap: 24px;
-    }
-
-    .message {
-      max-width: 80%; padding: 16px 20px; border-radius: 16px; font-size: 15px; line-height: 1.6;
-      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; opacity: 0; transform: translateY(20px);
-    }
-    
-    .user { 
-      align-self: flex-end; 
-      background: var(--accent-gradient); 
-      color: #fff; 
-      border-bottom-right-radius: 4px; 
-      box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3); 
-      white-space: pre-wrap; 
-    }
-    
-    .ai { align-self: flex-start; background: var(--panel-bg); border: 1px solid var(--border-color); border-bottom-left-radius: 4px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); backdrop-filter: blur(8px); }
-
-    /* AIマークダウン内の装飾 */
-    .ai p { margin-bottom: 10px; }
-    .ai p:last-child { margin-bottom: 0; }
-    .ai ul, .ai ol { margin-left: 20px; margin-bottom: 10px; }
-    .ai code { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.9em; }
-    .ai pre { background: #1e1e24; padding: 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0; border: 1px solid rgba(255,255,255,0.05); }
-    .ai pre code { background: none; padding: 0; }
-
-    /* 入力コンテナ */
-    .input-container { padding: 24px 15%; background: rgba(9, 10, 15, 0.9); border-top: 1px solid var(--border-color); }
-    .input-area { display: flex; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 16px; padding: 10px 14px; gap: 12px; align-items: flex-end; }
-    .input-area:focus-within { border-color: var(--accent-color); box-shadow: 0 0 15px rgba(0, 195, 255, 0.2); }
-    
-    textarea { 
-      flex: 1; 
-      resize: none; 
-      border: none; 
-      background: transparent; 
-      color: #fff; 
-      font-size: 15.5px; 
-      padding: 4px 0; 
-      outline: none; 
-      height: 28px; 
-      max-height: 150px; 
-      font-family: inherit; 
-      line-height: 1.5;
-    }
-    
-    button { height: 36px; padding: 0 20px; border: none; border-radius: 10px; background: var(--accent-gradient); color: #fff; font-weight: 600; cursor: pointer; transition: all 0.2s ease; margin-bottom: 2px; }
-    button:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 195, 255, 0.5); }
-    button:disabled { background: #333; color: #777; cursor: not-allowed; transform: none; box-shadow: none; }
-
-    /* クレジット */
-    .footer { text-align: center; font-size: 12px; color: #555; padding: 10px 0; background: var(--bg-dark); border-top: 1px solid rgba(255,255,255,0.02); }
-
-    .typing-indicator { display: flex; gap: 5px; padding: 4px 0; }
-    .typing-indicator span { width: 8px; height: 8px; background: var(--accent-color); border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
-    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
-    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
-
-    @keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
-    @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1.0); } }
-    @media (max-width: 768px) {
-      .sidebar { display: none; }
-      .chat-box, .input-container { padding: 20px 5%; }
-    }
-  </style>
+        button { background: #3aa89b; color: white; border: none; padding: 6px 12px; font-size: 12px; border-radius: 15px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #00fff0; color: #101020; }
+        .btn-pink { background: #ff007f; }
+        .btn-purple { background: #6633aa; }
+        .btn-orange { background: #cc6600; }
+        .btn-green { background: #00aa55; }
+        
+        .flex-row { display: flex; gap: 6px; align-items: center; }
+        #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: #ff1133; box-shadow: 0 0 8px #ff1133; z-index: 10; pointer-events: none; }
+        input, select, textarea { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
+        .credit-text { font-size: 10px; color: #444466; margin-top: 10px; text-align: center; font-family: monospace; letter-spacing: 1px; }
+        
+        #editor-close-btn { background: #444; font-size: 11px; border-radius: 4px; padding: 2px 8px; cursor: pointer; color: #fff; }
+    </style>
 </head>
 <body>
 
-  <div class="sidebar">
-    <div class="new-chat-btn" id="newChatBtn">＋ 新しいチャット</div>
-    <div class="chat-list" id="chatList"></div>
-  </div>
+<div id="main-layout">
+    <div id="game-area">
+        <div id="game-container">
+            <div id="ui-top">
+                <span>SCORE: <span id="score">000000</span></span>
+                <button id="config-trigger">⚙️設定</button>
+            </div>
+            
+            <div id="lanes-container">
+                <div class="lane" id="lane-0"><span class="lane-key-hint">A</span></div>
+                <div class="lane" id="lane-1"><span class="lane-key-hint">S</span></div>
+                <div class="lane" id="lane-2"><span class="lane-key-hint">Space</span></div>
+                <div class="lane" id="lane-3"><span class="lane-key-hint">K</span></div>
+                <div class="lane" id="lane-4"><span class="lane-key-hint">L</span></div>
+            </div>
+            
+            <div class="judge-slot" id="slot-0"></div>
+            <div class="judge-slot" id="slot-1"></div>
+            <div class="judge-slot" id="slot-2"></div>
+            <div class="judge-slot" id="slot-3"></div>
+            <div class="judge-slot" id="slot-4"></div>
 
-  <div class="main-content">
-    <div class="header">
-      <div class="brand">eeeAI</div>
-      <div class="mode-container">
-        <span>💻 プログラミングモード</span>
-        <label class="switch">
-          <input type="checkbox" id="modeToggle">
-          <span class="slider"></span>
-        </label>
-      </div>
+            <div id="judge-line"></div>
+            <div id="notes-layer"></div>
+            <div id="combo-container">
+                <div id="judge-text"></div>
+                <div id="combo-number"></div>
+            </div>
+
+            <div id="title-screen" class="overlay-screen">
+                <h1 style="color: #00fff0; margin: 0 0 25px 0; font-size: 36px; text-shadow: 0 0 15px rgba(0,255,240,0.6); font-weight: 900;">ぼかせか！</h1>
+                <button id="mode-single-btn" style="width: 200px; font-size: 14px; margin-bottom: 10px;">シングルプレイ</button>
+                <button id="mode-multi-btn" style="width: 200px; font-size: 13px; background: #222; color: #555; cursor: not-allowed; margin-bottom: 10px;" disabled>マルチプレイ (開発予定)</button>
+                <button id="mode-editor-btn" class="btn-pink" style="width: 200px; font-size: 13px; margin-bottom: 10px;">🛠️ 自作譜面制作</button>
+                <div class="credit-text" style="color: #555577; margin-top: 40px; font-weight: bold;">
+                    DEVELOPED BY EEE<br>EEESTUDIO
+                </div>
+            </div>
+
+            <div id="select-screen" class="overlay-screen" style="display: none;">
+                <h4 style="color: #ff007f; margin: 0 0 6px 0;">SELECT MUSIC</h4>
+                
+                <div style="width: 85%; background: rgba(255,255,255,0.06); padding: 6px; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 4px; box-sizing: border-box;">
+                    <button id="menu-file-save-btn" class="btn-green" style="font-size: 9px; padding: 4px 6px; flex: 1; border-radius: 4px;">📤 譜面保存(.json)</button>
+                    <button id="menu-file-load-btn" class="btn-orange" style="font-size: 9px; padding: 4px 6px; flex: 1; border-radius: 4px;">📥 ファイル読込</button>
+                </div>
+                
+                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:240px; overflow-y:auto;" id="song-list-container"></div>
+                <div class="flex-row" style="margin-top: 15px; width: 85%;">
+                    <button id="select-back-btn" style="background:#555;">戻る</button>
+                    <button id="start-game-btn" class="btn-pink" style="flex:1; font-weight:bold;">GAME START</button>
+                </div>
+            </div>
+
+            <div id="result-screen" class="overlay-screen" style="display: none;">
+                <h3 style="color: #ff007f; margin: 0;">STAGE CLEAR</h3>
+                <div style="font-size: 32px; color: #00fff0; font-weight: bold; font-family: monospace;" id="res-score">000000</div>
+                <div style="margin: 8px 0; font-size: 12px; text-align: left; background: rgba(255,255,255,0.04); padding: 10px; border-radius: 8px; min-width: 210px;">
+                    Max Combo: <span id="res-combo" style="float:right;">0</span><br>
+                    <span style="color:#00fff0;">PERFECT:</span> <span id="res-p" style="float:right;">0</span><br>
+                    <span style="color:#ffaa00;">GREAT:</span> <span id="res-g" style="float:right;">0</span><br>
+                    <span style="color:#00ff33;">GOOD:</span> <span id="res-gd" style="float:right;">0</span><br>
+                    <span style="color:#ff3333;">MISS:</span> <span id="res-m" style="float:right;">0</span>
+                </div>
+                <div class="flex-row" style="width: 80%;">
+                    <button id="res-to-menu-btn" style="background:#555; flex:1;">選曲へ</button>
+                    <button id="retry-btn" class="btn-pink" style="flex:1;">再挑戦</button>
+                </div>
+            </div>
+
+            <div id="config-overlay" class="overlay-screen">
+                <h3 style="color:#00fff0; margin:0 0 15px 0;">OPTION SETTINGS</h3>
+                <div style="text-align:left; width:80%; background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; font-size:13px; display:flex; flex-direction:column; gap:12px;">
+                    <label style="font-weight:bold; color:#fff;">
+                        <input type="checkbox" id="config-use-keyboard" style="width:auto; margin-right:8px;"> 非推奨キーボード操作を有効化
+                    </label>
+                    <div style="border-top: 1px solid #333; padding-top: 8px;">
+                        <label style="font-weight:bold; color:#00fff0;">⚡ ノーツスピード (流れる速度)</label>
+                        <select id="config-speed-select" style="margin-top:4px; background:#111;">
+                            <option value="0.5">0.5x (超低速)</option>
+                            <option value="1.0" selected>1.0x (標準)</option>
+                            <option value="1.5">1.5x (快速)</option>
+                            <option value="2.0">2.0x (高速)</option>
+                            <option value="2.5">2.5x (激速)</option>
+                            <option value="3.0">3.0x (超激速)</option>
+                        </select>
+                    </div>
+                </div>
+                <button id="config-close-btn" class="btn-pink" style="margin-top:20px; width:120px;">閉じる</button>
+            </div>
+        </div>
     </div>
-    
-    <div id="chatBox" class="chat-box"></div>
-    
-    <div class="input-container">
-      <div class="input-area">
-        <textarea id="promptInput" placeholder="eeeAI にメッセージを送信... (Ctrl+Enterで送信)"></textarea>
-        <button id="submitBtn">Send</button>
-      </div>
+
+    <input type="file" id="shared-file-load-input" accept=".json" style="display:none;">
+
+    <div id="editor-panel">
+        <div style="font-size: 13px; font-weight: bold; color: #ff007f; margin-bottom: 6px; border-bottom: 1px solid #ff007f; padding-bottom:2px; display:flex; justify-content:space-between; align-items:center;">
+            <span>🛠 譜面スタジオ <span id="admin-badge" style="font-size:9px; background:#ff007f; color:#fff; padding:1px 4px; border-radius:3px; display:none;">ADMIN</span></span>
+            <button id="editor-close-btn">✖ 閉じる</button>
+        </div>
+        
+        <div class="panel-section">
+            <div class="section-title">🎵 1. 対象の楽曲情報設定</div>
+            <div class="flex-row">
+                <select id="edit-song-index" style="flex:2;"></select>
+                <select id="edit-diff-zone" style="flex:1;">
+                    <option value="easy">EASY</option>
+                    <option value="normal" selected>NORMAL</option>
+                    <option value="hard">HARD</option>
+                </select>
+            </div>
+            <div class="flex-row" style="margin-top:6px; gap:10px;">
+                <div style="flex:1;">
+                    <label style="font-size:9px; color:#aaa;">音源URL (.mp3)</label>
+                    <input type="text" id="edit-song-url">
+                </div>
+                <div style="width:70px;">
+                    <label style="font-size:9px; color:#ff007f;">BPM設定</label>
+                    <input type="number" id="edit-song-bpm" value="120" min="40" max="300">
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title" style="color:#00ff66;">💾 1.2 譜面ファイルの保存 & 読み込み</div>
+            <div class="flex-row">
+                <button id="file-save-btn" class="btn-green" style="flex:1; font-weight:bold;">📤 譜面ファイルを保存 (.json)</button>
+                <button id="file-load-trigger" class="btn-orange" style="flex:1; font-weight:bold;">📥 ファイルから読み込み</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title" style="color: #00fff0;">🤖 1.5 譜面自動生成（オート配置）</div>
+            <div class="flex-row" style="font-size:10px; color:#ccc;">
+                範囲: <input type="number" id="gen-start-beat" value="0" style="width:45px;"> 〜 
+                <input type="number" id="gen-end-beat" value="32" style="width:45px;"> 拍
+                間隔: <select id="gen-interval" style="width:75px; background:#000;">
+                    <option value="1">1拍ごと</option>
+                    <option value="0.5" selected>0.5拍ごと</option>
+                    <option value="2">2拍ごと</option>
+                </select>
+                種類: <select id="gen-type" style="width:75px; background:#000;">
+                    <option value="mix">混合ランダム</option>
+                    <option value="normal">単押しのみ</option>
+                    <option value="flick">フリックのみ</option>
+                </select>
+                <button id="execute-auto-gen" class="btn-purple" style="font-size:10px; padding:4px 8px;">自動生成</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">✏️ 2. パレット選択</div>
+            <div class="palette-group">
+                <button class="palette-btn active" data-type="normal">単押し</button>
+                <button class="palette-btn" data-type="flick">フリック</button>
+                <button class="palette-btn" data-type="long-start">長始点</button>
+                <button class="palette-btn" data-type="long-end">長終点</button>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">📋 2.5 範囲指定ノーツコピペ</div>
+            <div class="flex-row" style="font-size:10px; color:#ccc;">
+                コピー範囲: <input type="number" id="copy-start-beat" placeholder="開始" style="width:45px;"> 
+                〜 <input type="number" id="copy-end-beat" placeholder="終了" style="width:45px;">
+                ➡️ 貼付先: <input type="number" id="paste-target-beat" placeholder="目標" style="width:45px;">
+                <button id="execute-copy-btn" style="font-size:10px; padding:3px 8px; background:#443366;">複製</button>
+            </div>
+        </div>
+
+        <div class="panel-section" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+            <div class="section-title">⏱ 3. タイムライン判定線＆グリッド</div>
+            <div class="flex-row" style="margin-bottom: 4px;">
+                <button id="edit-play-btn" style="font-size:11px; padding:3px 8px;">⏯ 再生/一時停止</button>
+                <span id="editor-time-disp" style="font-family:monospace; font-size:11px; color:#00fff0;">0.00s (0.00拍)</span>
+                <label style="font-size:10px; color:#aaa; margin-left:8px; display:flex; align-items:center;">
+                    <input type="checkbox" id="editor-metronome-toggle" style="width:auto; margin-right:3px;">🔊メトロノーム
+                </label>
+                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:3px 6px; margin-left:auto;">クリア</button>
+            </div>
+            <div id="timeline-container">
+                <div id="timeline-grid">
+                    <div id="play-cursor"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-section" style="margin-bottom:0;">
+            <div class="section-title" style="color:#00bfff;">📋 4. 設定コード管理 (文字列コピペ用)</div>
+            <textarea id="export-code-output" style="height:45px; font-size:9px; font-family:monospace;" placeholder="ここに譜面データが出力されます。"></textarea>
+            <button id="import-code-btn" style="font-size:10px; padding:3px 10px; background:#005577; margin-top:3px; width:100%;">📥 文字列コードからインポート</button>
+        </div>
+        
+        <div class="credit-text">POWERED BY EEESTUDIO RHYTHM ENGINE v1.5.0</div>
     </div>
-    
-    <div class="footer">Powered by eeesutudio</div>
-  </div>
+</div>
 
-  <script>
-    const API_KEY = "AIzaSyD3wvU-sGDeTc5wAnHYCmYcjmGfmE8oBt0";
-    const chatBox = document.getElementById("chatBox");
-    const promptInput = document.getElementById("promptInput");
-    const submitBtn = document.getElementById("submitBtn");
-    const chatListEl = document.getElementById("chatList");
-    const newChatBtn = document.getElementById("newChatBtn");
-    const modeToggle = document.getElementById("modeToggle");
+<script>
+    // --- 譜面データベース ---
+    let SONGS_DATABASE = [
+        {
+            title: "メルト (Melt)",
+            url: "",
+            bpm: 120,
+            charts: {
+                easy: [{lane: 2, time: 1.0, type: "normal"}, {lane: 2, time: 3.0, type: "normal"}],
+                normal: [
+                    {lane: 0, time: 1.0, type: "normal"}, {lane: 1, time: 1.5, type: "normal"},
+                    {lane: 2, time: 2.0, type: "flick"},  {lane: 3, time: 2.5, type: "normal"},
+                    {lane: 4, time: 3.0, type: "long-start"}, {lane: 4, time: 4.5, type: "long-end"}
+                ],
+                hard: [{lane: 0, time: 0.5, type: "flick"}, {lane: 1, time: 0.7, type: "flick"}, {lane: 2, time: 0.9, type: "flick"}]
+            }
+        }
+    ];
 
-    let threads = JSON.parse(localStorage.getItem("eeeAI_threads")) || {};
-    let currentThreadId = localStorage.getItem("eeeAI_currentThread") || "";
+    let controlMode = "touch";
+    let selectedSongIdx = 0; let selectedDiff = "normal";
+    let editingSongIdx = 0; let editingDiff = "normal";
+    let selectedNodeType = "normal";
+    let userSpeedMultiplier = 1.0; 
+    let isAdminMode = false; // 管理者フラグ
 
-    marked.setOptions({
-      breaks: true,
-      highlight: function(code) { return hljs.highlightAuto(code).value; }
-    });
+    const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
+    const baseScrollSpeed = 360; const targetY = 570; const pixelsPerSecond = 120;
+
+    let gameStarted = false; let isPlayingInEditor = false;
+    let audioCtx = null; let audioHtml = null;
+    let startTime = 0; let pauseTimeOffset = 0;
+    let score = 0; let combo = 0; let maxCombo = 0;
+    let cntPerfect = 0; let cntGreat = 0; let cntGood = 0; let cntMiss = 0;
+    let activeNotes = [];
+    let lastEditorPlaybackTime = 0;
+    let lastMetronomeBeat = -1;
+
+    let touchStartPositions = {};
+    let timelineClickTimer = null;
+
+    const titleScreen = document.getElementById('title-screen');
+    const selectScreen = document.getElementById('select-screen');
+    const resultScreen = document.getElementById('result-screen');
+    const configOverlay = document.getElementById('config-overlay');
+    const notesLayer = document.getElementById('notes-layer');
+    const scoreEl = document.getElementById('score');
+    const judgeTextEl = document.getElementById('judge-text');
+    const comboNumberEl = document.getElementById('combo-number');
+    const timelineGrid = document.getElementById('timeline-grid');
+    const timelineContainer = document.getElementById('timeline-container');
+    const playCursor = document.getElementById('play-cursor');
+    const timeDisp = document.getElementById('editor-time-disp');
+    const exportOutput = document.getElementById('export-code-output');
+    const sharedFileInput = document.getElementById('shared-file-load-input');
 
     window.addEventListener('DOMContentLoaded', () => {
-      if (Object.keys(threads).length === 0) {
-        createNewThread();
-      } else {
-        if (!threads[currentThreadId]) currentThreadId = Object.keys(threads)[0];
-        renderSidebar();
-        loadThread(currentThreadId);
-      }
-      adjustTextareaHeight();
+        checkAdminURL(); // URL管理判定チェック
+        refreshSongDropdowns();
+        renderSelectionMenu();
+        initTimeline();
+        setupTouchControls();
+        setupPalette();
     });
 
-    function adjustTextareaHeight() {
-      promptInput.style.height = '28px'; 
-      promptInput.style.height = promptInput.scrollHeight + 'px'; 
-    }
-    promptInput.addEventListener('input', adjustTextareaHeight);
-
-    function createNewThread() {
-      const id = "thread_" + Date.now();
-      threads[id] = {
-        title: "新しいチャット",
-        messages: [{ text: "こんにちは！私はeeeAIです。何でも聞いてくださいね！", sender: "ai", isHTML: false }]
-      };
-      currentThreadId = id;
-      saveData();
-      renderSidebar();
-      loadThread(id);
-      adjustTextareaHeight();
-    }
-
-    function renderSidebar() {
-      chatListEl.innerHTML = "";
-      Object.keys(threads).sort((a,b) => b.split("_")[1] - a.split("_")[1]).forEach(id => {
-        const item = document.createElement("div");
-        item.className = `chat-item ${id === currentThreadId ? 'active' : ''}`;
-        item.innerHTML = `
-          <span>${threads[id].title}</span>
-          <span class="delete-chat" onclick="deleteThread(event, '${id}')">✕</span>
-        `;
-        item.addEventListener("click", () => {
-          currentThreadId = id;
-          localStorage.setItem("eeeAI_currentThread", id);
-          renderSidebar();
-          loadThread(id);
-          adjustTextareaHeight();
-        });
-        chatListEl.appendChild(item);
-      });
-    }
-
-    function loadThread(id) {
-      chatBox.innerHTML = "";
-      threads[id].messages.forEach(msg => {
-        addMessageToDOM(msg.text, msg.sender, msg.isHTML);
-      });
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    window.deleteThread = function(e, id) {
-      e.stopPropagation();
-      delete threads[id];
-      if (currentThreadId === id) {
-        currentThreadId = Object.keys(threads)[0] || "";
-      }
-      if (currentThreadId === "") {
-        createNewThread();
-      } else {
-        saveData();
-        renderSidebar();
-        loadThread(currentThreadId);
-      }
-    }
-
-    function saveData() {
-      localStorage.setItem("eeeAI_threads", JSON.stringify(threads));
-      localStorage.setItem("eeeAI_currentThread", currentThreadId);
-    }
-
-    async function handleMessage() {
-      const prompt = promptInput.value.trim();
-      if (!prompt) return;
-
-      if (threads[currentThreadId].messages.length <= 1 && threads[currentThreadId].title === "新しいチャット") {
-        threads[currentThreadId].title = prompt.substring(0, 12).replace(/\n/g, " "); 
-      }
-
-      const userPrompt = promptInput.value;
-
-      threads[currentThreadId].messages.push({ text: userPrompt, sender: "user", isHTML: false });
-      addMessageToDOM(userPrompt, "user");
-      promptInput.value = "";
-      promptInput.style.height = '28px'; 
-      submitBtn.disabled = true;
-      saveData();
-      renderSidebar();
-
-      const loadingBubble = addMessageToDOM('<div class="typing-indicator"><span></span><span></span><span></span></div>', "ai", true);
-
-      let systemPrompt = "";
-      if (modeToggle.checked) {
-        systemPrompt = "【システム命令：あなたは超一流のプログラミング講師でありシニアエンジニアです。初心者の質問には専門用語を噛み砕いて説明し、提供されたコードのバグを修正する場合は、修正後の綺麗なコードブロックと、なぜバグが起きたかの原因を箇条書きで分かりやすく教えてください。】\n\n";
-      } else {
-        systemPrompt = "【システム命令：なじみやすい親切なAIアシスタントとして会話してください。】\n\n";
-      }
-
-      try {
-        const res = await fetch(
-          "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=" + API_KEY,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              contents: [{ 
-                parts: [{ 
-                  text: systemPrompt + userPrompt 
-                }] 
-              }]
-            })
-          }
-        );
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-          if (res.status === 429) {
-            loadingBubble.innerHTML = `<span style="color:#ff4a4a;">⚠️ Googleの無料枠制限(429)を超えました。数10秒ほど待ってから再度お試しください。</span>`;
-          } else {
-            loadingBubble.innerHTML = `<span style="color:#ff4a4a;">Error ${res.status}: ${data.error?.message || "Unknown error"}</span>`;
-          }
-          return;
+    // 【機能追加】?_admin パラメータがついているかをチェックする関数
+    function checkAdminURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('_admin')) {
+            isAdminMode = true;
+            document.getElementById('admin-badge').style.display = 'inline';
+            document.getElementById('editor-panel').style.display = 'flex'; // 管理者の場合はエディタを自動展開
         }
-
-        const output = data?.candidates?.[0]?.content?.parts?.[0]?.text || "返答がありませんでした。";
-        const parsedHTML = marked.parse(output);
-        
-        loadingBubble.innerHTML = parsedHTML;
-        loadingBubble.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
-
-        threads[currentThreadId].messages.push({ text: parsedHTML, sender: "ai", isHTML: true });
-        saveData();
-
-      } catch (err) {
-        loadingBubble.innerHTML = `<span style="color:#ff4a4a;">ネットワークエラー: ${err.message}</span>`;
-      } finally {
-        submitBtn.disabled = false;
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }
     }
 
-    function addMessageToDOM(text, sender, isHTML = false) {
-      const msg = document.createElement("div");
-      msg.className = "message " + sender;
-      if (sender === "ai" || isHTML) { msg.innerHTML = text; } else { msg.textContent = text; }
-      chatBox.appendChild(msg);
-      chatBox.scrollTop = chatBox.scrollHeight;
-      return msg;
-    }
-
-    submitBtn.addEventListener("click", handleMessage);
-    newChatBtn.addEventListener("click", createNewThread);
-
-    promptInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleMessage();
-      }
+    // 画面切り替えイベント
+    document.getElementById('mode-editor-btn').addEventListener('click', () => {
+        document.getElementById('editor-panel').style.display = 'flex';
     });
-  </script>
+    document.getElementById('editor-close-btn').addEventListener('click', () => {
+        if(audioHtml) audioHtml.pause(); isPlayingInEditor = false;
+        document.getElementById('editor-panel').style.display = 'none';
+    });
+
+    document.getElementById('config-trigger').addEventListener('click', () => configOverlay.style.display = 'flex');
+    document.getElementById('config-close-btn').addEventListener('click', () => {
+        controlMode = document.getElementById('config-use-keyboard').checked ? "keyboard" : "touch";
+        userSpeedMultiplier = parseFloat(document.getElementById('config-speed-select').value);
+        document.querySelectorAll('.lane-key-hint').forEach(el => {
+            if(controlMode === 'keyboard') el.classList.add('show'); else el.classList.remove('show');
+        });
+        configOverlay.style.display = 'none';
+    });
+
+    function refreshSongDropdowns() {
+        const select = document.getElementById('edit-song-index'); select.innerHTML = '';
+        if(SONGS_DATABASE.length === 0) {
+            editingSongIdx = 0; document.getElementById('edit-song-url').value = ""; document.getElementById('edit-song-bpm').value = 120;
+            updateCodeOutput(); return;
+        }
+        SONGS_DATABASE.forEach((s, idx) => {
+            const opt = document.createElement('option'); opt.value = idx; opt.textContent = s.title; select.appendChild(opt);
+        });
+        if(editingSongIdx >= SONGS_DATABASE.length) editingSongIdx = SONGS_DATABASE.length - 1;
+        select.value = editingSongIdx;
+        document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
+        document.getElementById('edit-song-bpm').value = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        updateCodeOutput();
+    }
+
+    function renderSelectionMenu() {
+        const container = document.getElementById('song-list-container'); container.innerHTML = '';
+        if(SONGS_DATABASE.length === 0) {
+            container.innerHTML = '<div style="color:#ff3333; font-size:12px;">⚠️ 楽曲データがありません。</div>'; return;
+        }
+        SONGS_DATABASE.forEach((song, idx) => {
+            const card = document.createElement('div'); card.className = `song-card ${idx === selectedSongIdx ? 'selected' : ''}`;
+            card.innerHTML = `<strong>🎵 ${song.title}</strong> (BPM: ${song.bpm || 120})`;
+            const div = document.createElement('div'); div.className = "diff-selector";
+            ['easy','normal','hard'].forEach(d => {
+                const savedScore = localStorage.getItem(`bocaseca_score_${song.title}_${d}`) || "------";
+                const b = document.createElement('button'); b.className = `diff-btn ${(idx===selectedSongIdx && selectedDiff===d)?'active':''}`;
+                b.innerHTML = `${d.toUpperCase()}<br><span style="font-size:8px;opacity:0.7;">Score:${savedScore}</span>`;
+                b.addEventListener('click', (e) => { e.stopPropagation(); selectedSongIdx = idx; selectedDiff = d; renderSelectionMenu(); });
+                div.appendChild(b);
+            });
+            card.addEventListener('click', () => { selectedSongIdx = idx; renderSelectionMenu(); });
+            card.appendChild(div); container.appendChild(card);
+        });
+    }
+
+    // 自動譜面ジェネレーター
+    document.getElementById('execute-auto-gen').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        const startBeat = parseFloat(document.getElementById('gen-start-beat').value) || 0;
+        const endBeat = parseFloat(document.getElementById('gen-end-beat').value) || 32;
+        const step = parseFloat(document.getElementById('gen-interval').value) || 0.5;
+        const genType = document.getElementById('gen-type').value;
+        const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        const beatDuration = 60 / bpm;
+        const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+
+        let addedCount = 0;
+        for (let b = startBeat; b <= endBeat; b += step) {
+            const calculatedTime = b * beatDuration;
+            const lane = Math.floor(Math.random() * 5);
+            if (!chart.some(n => n.lane === lane && Math.abs(n.time - calculatedTime) < 0.02)) {
+                let type = genType;
+                if (genType === 'mix') { type = Math.random() > 0.25 ? 'normal' : 'flick'; }
+                chart.push({ lane: lane, time: Math.round(calculatedTime * 1000) / 1000, type: type });
+                addedCount++;
+            }
+        }
+        chart.sort((a,b) => a.time - b.time);
+        initTimeline();
+        alert(`🤖 ${addedCount}個のノーツを自動配置しました！`);
+    });
+
+    // 共通の譜面ファイル保存（ダウンロード）関数
+    function downloadChartFile() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(SONGS_DATABASE, null, 4));
+        const dlAnchor = document.createElement('a');
+        dlAnchor.setAttribute("href", dataStr);
+        dlAnchor.setAttribute("download", "bocaseca_chart.json");
+        document.body.appendChild(dlAnchor);
+        dlAnchor.click();
+        dlAnchor.remove();
+    }
+
+    // 共通の譜面ファイル読み込みハンドラ
+    sharedFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            try {
+                const parsed = JSON.parse(evt.target.result);
+                if (Array.isArray(parsed)) {
+                    SONGS_DATABASE = parsed;
+                    editingSongIdx = 0; selectedSongIdx = 0;
+                    refreshSongDropdowns(); renderSelectionMenu(); initTimeline();
+                    alert("📥 譜面ファイルを読み込みました！");
+                } else { alert("ファイル構造が正しくありません。"); }
+            } catch(err) { alert("パースエラー:\n" + err); }
+            e.target.value = ''; 
+        };
+        reader.readAsText(file);
+    });
+
+    // 各ボタンの紐付け
+    document.getElementById('file-save-btn').addEventListener('click', downloadChartFile);
+    document.getElementById('menu-file-save-btn').addEventListener('click', downloadChartFile);
+    document.getElementById('file-load-trigger').addEventListener('click', () => sharedFileInput.click());
+    document.getElementById('menu-file-load-btn').addEventListener('click', () => sharedFileInput.click());
+
+    document.getElementById('edit-song-index').addEventListener('change', (e) => {
+        editingSongIdx = parseInt(e.target.value);
+        document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
+        document.getElementById('edit-song-bpm').value = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        initTimeline();
+    });
+    document.getElementById('edit-diff-zone').addEventListener('change', () => { editingDiff = document.getElementById('edit-diff-zone').value; initTimeline(); });
+    document.getElementById('edit-song-url').addEventListener('input', (e) => { if(SONGS_DATABASE[editingSongIdx]) { SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); updateCodeOutput(); } });
+    document.getElementById('edit-song-bpm').addEventListener('input', (e) => { if(SONGS_DATABASE[editingSongIdx]) { SONGS_DATABASE[editingSongIdx].bpm = parseInt(e.target.value) || 120; initTimeline(); } });
+
+    document.getElementById('import-code-btn').addEventListener('click', () => {
+        const rawCode = exportOutput.value.trim();
+        try {
+            let jsonText = rawCode;
+            if (rawCode.startsWith("let SONGS_DATABASE = ")) jsonText = rawCode.replace("let SONGS_DATABASE = ", "").replace(/;$/, "");
+            const parsed = JSON.parse(jsonText);
+            if (Array.isArray(parsed)) {
+                SONGS_DATABASE = parsed; refreshSongDropdowns(); renderSelectionMenu(); initTimeline(); alert("インポート成功！");
+            }
+        } catch(err) { alert("インポート失敗\n" + err); }
+    });
+
+    document.getElementById('execute-copy-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        const startBeat = parseFloat(document.getElementById('copy-start-beat').value);
+        const endBeat = parseFloat(document.getElementById('copy-end-beat').value);
+        const targetBeat = parseFloat(document.getElementById('paste-target-beat').value);
+        if(isNaN(startBeat) || isNaN(endBeat) || isNaN(targetBeat)) return;
+        
+        const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        const startTime = (startBeat * 60) / bpm; const endTime = (endBeat * 60) / bpm; const timeOffset = ((targetBeat * 60) / bpm) - startTime;
+        const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+        const targetNotes = chart.filter(n => n.time >= startTime && n.time <= endTime);
+
+        targetNotes.forEach(n => { chart.push({ lane: n.lane, time: Math.round((n.time + timeOffset) * 1000) / 1000, type: n.type }); });
+        chart.sort((a,b) => a.time - b.time); initTimeline(); alert("複製しました。");
+    });
+
+    function setupPalette() {
+        document.querySelectorAll('.palette-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active'); selectedNodeType = btn.getAttribute('data-type');
+            });
+        });
+    }
+
+    function updateCodeOutput() { exportOutput.value = "let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";"; }
+
+    function initTimeline() {
+        timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
+        if(SONGS_DATABASE.length === 0) return;
+        const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        const beatDuration = 60 / bpm;
+        for (let b = 0; b <= 120; b += 0.5) {
+            const t = b * beatDuration; const line = document.createElement('div'); const isMajor = b % 1.0 === 0;
+            line.className = `timeline-line ${isMajor ? 'major' : ''}`; line.style.bottom = (t * pixelsPerSecond) + 'px';
+            if (isMajor) line.textContent = b + "拍"; timelineGrid.appendChild(line);
+        }
+        const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+        for(let l=0; l<5; l++) {
+            const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
+            for(let i=0; i<laneNotes.length; i++) {
+                if(laneNotes[i].type === 'long-start') {
+                    const nextEnd = laneNotes.slice(i+1).find(n => n.type === 'long-end');
+                    if(nextEnd) {
+                        const bl = document.createElement('div'); bl.className = 'tl-body-line';
+                        bl.style.bottom = (laneNotes[i].time * pixelsPerSecond) + 'px'; bl.style.height = ((nextEnd.time - laneNotes[i].time) * pixelsPerSecond) + 'px';
+                        bl.style.left = (10 + l * 18) + '%'; timelineGrid.appendChild(bl);
+                    }
+                }
+            }
+        }
+        chart.forEach((note, index) => {
+            const noteEl = document.createElement('div'); noteEl.className = `timeline-note tl-${note.type}`;
+            noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px'; noteEl.style.left = (10 + note.lane * 18) + '%';
+            noteEl.textContent = note.type==='normal'?'単':note.type==='flick'?'払':note.type==='long-start'?'長始':'長終';
+            noteEl.addEventListener('contextmenu', (e) => { e.preventDefault(); chart.splice(index, 1); initTimeline(); updateCodeOutput(); });
+            timelineGrid.appendChild(noteEl);
+        });
+        updateCodeOutput();
+    }
+
+    timelineGrid.addEventListener('click', (e) => {
+        if(gameStarted || isPlayingInEditor || SONGS_DATABASE.length === 0) return;
+        clearTimeout(timelineClickTimer);
+        timelineClickTimer = setTimeout(() => {
+            const rect = timelineGrid.getBoundingClientRect(); let clickTime = ((rect.bottom - e.clientY) / pixelsPerSecond);
+            const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120; const beatDuration = 60 / bpm;
+            clickTime = (Math.round((clickTime / beatDuration) * 2) / 2) * beatDuration;
+            const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
+            if(clickLane >= 0 && clickLane < 5 && clickTime >= 0) {
+                const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff] = chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.04));
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff].push({ lane: clickLane, time: clickTime, type: selectedNodeType });
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff].sort((a,b)=>a.time - b.time); initTimeline();
+            }
+        }, 200);
+    });
+
+    timelineGrid.addEventListener('dblclick', (e) => {
+        if(SONGS_DATABASE.length === 0) return; clearTimeout(timelineClickTimer);
+        const rect = timelineGrid.getBoundingClientRect(); pauseTimeOffset = Math.max(0, Math.round(((rect.bottom - e.clientY) / pixelsPerSecond) * 100) / 100);
+        const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
+        timeDisp.textContent = `${pauseTimeOffset.toFixed(2)}s (${((pauseTimeOffset * bpm) / 60).toFixed(2)}拍)`;
+        playCursor.style.bottom = (pauseTimeOffset * pixelsPerSecond) + 'px';
+        if(isPlayingInEditor) {
+            startTime = performance.now() - (pauseTimeOffset * 1000); if(audioHtml) { audioHtml.currentTime = pauseTimeOffset; audioHtml.play().catch(()=>{}); }
+        }
+    });
+
+    document.getElementById('edit-play-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        if(!isPlayingInEditor) {
+            isPlayingInEditor = true; startTime = performance.now() - (pauseTimeOffset * 1000); lastEditorPlaybackTime = pauseTimeOffset; lastMetronomeBeat = -1;
+            const url = SONGS_DATABASE[editingSongIdx].url;
+            if(url) { if(!audioHtml) audioHtml = new Audio(url); audioHtml.currentTime = pauseTimeOffset; audioHtml.play().catch(()=>{}); }
+            else { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+            requestAnimationFrame(updateEditorTimeline);
+        } else { isPlayingInEditor = false; if(audioHtml) audioHtml.pause(); pauseTimeOffset = getCurrentTime(); }
+    });
+
+    function updateEditorTimeline() {
+        if(!isPlayingInEditor || SONGS_DATABASE.length === 0) return;
+        const curTime = getCurrentTime(); const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120; const curBeat = (curTime * bpm) / 60;
+        timeDisp.textContent = `${curTime.toFixed(2)}s (${curBeat.toFixed(2)}拍)`;
+        const y = curTime * pixelsPerSecond; playCursor.style.bottom = y + 'px';
+        if(y > 100) timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
+
+        if(document.getElementById('editor-metronome-toggle').checked) {
+            let currentQuantizedBeat = Math.floor(curBeat);
+            if(currentQuantizedBeat > lastMetronomeBeat) {
+                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                playSynthTone(currentQuantizedBeat % 4 === 0 ? 880 : 440); lastMetronomeBeat = currentQuantizedBeat;
+            }
+        }
+        if(!SONGS_DATABASE[editingSongIdx].url) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            SONGS_DATABASE[editingSongIdx].charts[editingDiff].forEach(n => { if(n.time >= lastEditorPlaybackTime && n.time < curTime) playSynthTone(400 + n.lane * 60); });
+        }
+        lastEditorPlaybackTime = curTime; requestAnimationFrame(updateEditorTimeline);
+    }
+
+    document.getElementById('clear-chart-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        if(confirm("この譜面を全消去しますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
+    });
+
+    document.getElementById('mode-single-btn').addEventListener('click', () => { 
+        if(SONGS_DATABASE.length === 0) return; titleScreen.style.display = 'none'; selectScreen.style.display = 'flex'; 
+    });
+    document.getElementById('select-back-btn').addEventListener('click', () => { selectScreen.style.display = 'none'; titleScreen.style.display = 'flex'; });
+    document.getElementById('res-to-menu-btn').addEventListener('click', () => { resultScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
+
+    function initGamePlay() {
+        score = 0; combo = 0; maxCombo = 0; cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
+        updateUI(); notesLayer.innerHTML = ''; activeNotes = []; judgeTextEl.textContent = ''; comboNumberEl.textContent = '';
+        selectScreen.style.display = 'none'; resultScreen.style.display = 'none'; gameStarted = true; isPlayingInEditor = false;
+
+        const song = SONGS_DATABASE[selectedSongIdx];
+        if (song.url) {
+            if(audioHtml) audioHtml.pause(); audioHtml = new Audio(song.url);
+            audioHtml.play().then(() => { startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate); }).catch(() => { stopGame(false); });
+        } else {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)(); startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate);
+        }
+    }
+
+    document.getElementById('start-game-btn').addEventListener('click', initGamePlay);
+    document.getElementById('retry-btn').addEventListener('click', initGamePlay);
+
+    function getCurrentTime() {
+        if(SONGS_DATABASE.length === 0) return 0;
+        if((gameStarted || isPlayingInEditor) && SONGS_DATABASE[gameStarted?selectedSongIdx:editingSongIdx].url && audioHtml) return audioHtml.currentTime;
+        return (performance.now() - startTime) / 1000;
+    }
+
+    function buildGameNotes(chart) {
+        for(let l=0; l<5; l++) {
+            const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
+            for(let i=0; i<laneNotes.length; i++) {
+                const note = laneNotes[i];
+                if(note.type === 'normal' || note.type === 'flick') { addNodeToEngine(note, note.type, 0); }
+                else if(note.type === 'long-start') {
+                    const pair = laneNotes.slice(i+1).find(n => n.type === 'long-end');
+                    if(pair) addNodeToEngine(note, 'long', pair.time - note.time); else addNodeToEngine(note, 'normal', 0);
+                }
+            }
+        }
+    }
+
+    function addNodeToEngine(note, type, duration) {
+        const el = document.createElement('div'); el.className = `note note-${type==='long'?'long':type}`; let bodyEl = null;
+        if(type === 'long') { bodyEl = document.createElement('div'); bodyEl.className = 'long-body'; document.getElementById(`lane-${note.lane}`).appendChild(bodyEl); }
+        document.getElementById(`lane-${note.lane}`).appendChild(el);
+        activeNotes.push({ lane: note.lane, time: note.time, type: type, duration: duration, element: el, bodyElement: bodyEl, hit: false, tailHit: false });
+    }
+
+    function gameUpdate() {
+        if (!gameStarted) return; const curTime = getCurrentTime(); let remaining = false;
+        const currentScrollSpeed = baseScrollSpeed * userSpeedMultiplier;
+
+        activeNotes.forEach(note => {
+            const timeRemaining = note.time - curTime; const currentY = targetY - (timeRemaining * currentScrollSpeed);
+            if(!note.hit) { note.element.style.top = currentY + 'px'; remaining = true; }
+            else if(note.type === 'long' && !note.tailHit) { note.element.style.top = targetY + 'px'; remaining = true; }
+
+            if(note.type === 'long' && note.bodyElement) {
+                const headY = note.hit ? targetY : currentY; const tailY = targetY - (((note.time + note.duration) - curTime) * currentScrollSpeed);
+                note.bodyElement.style.top = tailY + 'px'; note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
+            }
+            if (note.type !== 'long' && timeRemaining < -0.12 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
+            else if(note.type === 'long') {
+                if(!note.hit && timeRemaining < -0.12) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
+                else if(note.hit && !note.tailHit && ((note.time + note.duration) - curTime) < -0.12) { note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
+            }
+        });
+        if ((audioHtml && audioHtml.ended) || (!audioHtml && !remaining && curTime > 3.0)) { stopGame(true); return; }
+        if (gameStarted) requestAnimationFrame(gameUpdate);
+    }
+
+    function stopGame(showResult) {
+        gameStarted = false; if(audioHtml) audioHtml.pause(); pauseTimeOffset = 0;
+        if(showResult) {
+            const currentSong = SONGS_DATABASE[selectedSongIdx]; const saveKey = `bocaseca_score_${currentSong.title}_${selectedDiff}`;
+            if (score > (parseInt(localStorage.getItem(saveKey)) || 0)) { localStorage.setItem(saveKey, score); }
+            document.getElementById('res-score').textContent = String(score).padStart(6, '0'); document.getElementById('res-combo').textContent = maxCombo;
+            document.getElementById('res-p').textContent = cntPerfect; document.getElementById('res-g').textContent = cntGreat;
+            document.getElementById('res-gd').textContent = cntGood; document.getElementById('res-m').textContent = cntMiss;
+            resultScreen.style.display = 'flex'; renderSelectionMenu();
+        } else { selectScreen.style.display = 'flex'; }
+    }
+
+    function setupTouchControls() {
+        for (let l = 0; l < 5; l++) {
+            const laneEl = document.getElementById(`lane-${l}`);
+            const handleDown = (e) => {
+                if (!gameStarted) return; e.preventDefault(); laneEl.classList.add('touch-active');
+                const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                touchStartPositions[l] = { x: cx, y: cy, processed: false }; executeInputTrigger(l, "down");
+            };
+            const handleMove = (e) => {
+                if (!gameStarted || !touchStartPositions[l] || touchStartPositions[l].processed) return;
+                const cx = e.touches ? e.touches[0].clientX : e.clientX; const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                if (Math.sqrt(Math.pow(cx - touchStartPositions[l].x, 2) + Math.pow(cy - touchStartPositions[l].y, 2)) > 25) {
+                    touchStartPositions[l].processed = true; executeInputTrigger(l, "flick");
+                }
+            };
+            const handleUp = (e) => { if (!gameStarted) return; e.preventDefault(); laneEl.classList.remove('touch-active'); delete touchStartPositions[l]; executeInputTrigger(l, "up"); };
+            laneEl.addEventListener('touchstart', handleDown, { passive: false }); laneEl.addEventListener('touchmove', handleMove, { passive: false }); laneEl.addEventListener('touchend', handleUp, { passive: false });
+            laneEl.addEventListener('mousedown', handleDown); window.addEventListener('mousemove', (e) => { if(laneEl.classList.contains('touch-active')) handleMove(e); }); laneEl.addEventListener('mouseup', handleUp);
+        }
+    }
+
+    function executeInputTrigger(laneIdx, type) {
+        const curTime = getCurrentTime();
+        if(type === "down") {
+            playSynthTone(400 + laneIdx * 60); let target = null; let min = Infinity;
+            activeNotes.forEach(n => { if(n.lane === laneIdx && !n.hit && n.type !== 'flick') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } } });
+            if(target && min < 0.12) { target.hit = true; if(target.type !== 'long') target.element.remove(); hitJudge(min, false); }
+        } else if(type === "flick") {
+            let target = null; let min = Infinity;
+            activeNotes.forEach(n => { if(n.lane === laneIdx && !n.hit && n.type === 'flick') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } } });
+            if(target && min < 0.12) { target.hit = true; target.element.remove(); hitJudge(min, true); }
+        } else if(type === "up") {
+            activeNotes.forEach(n => { if(n.lane === laneIdx && n.type === 'long' && n.hit && !n.tailHit) { const d = Math.abs((n.time + n.duration) - curTime); n.tailHit = true; n.element.remove(); if(n.bodyElement) n.bodyElement.remove(); hitJudge(d, false); } });
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if(controlMode !== "keyboard") return; const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return; e.preventDefault();
+        const targetLane = document.getElementById(`lane-${laneIdx}`);
+        if(targetLane && !targetLane.classList.contains('touch-active')) {
+            targetLane.classList.add('touch-active'); const curTime = getCurrentTime();
+            let hasFlick = activeNotes.some(n => n.lane === laneIdx && !n.hit && n.type === 'flick' && Math.abs(n.time - curTime) < 0.12);
+            executeInputTrigger(laneIdx, hasFlick ? "flick" : "down");
+        }
+    });
+    window.addEventListener('keyup', (e) => { if(controlMode !== "keyboard") return; const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return; const tl = document.getElementById(`lane-${laneIdx}`); if(tl) tl.classList.remove('touch-active'); executeInputTrigger(laneIdx, "up"); });
+
+    function hitJudge(d, isFlick) {
+        if(d < 0.03) countJudge(isFlick ? "FLICK PERFECT" : "PERFECT"); else if(d < 0.07) countJudge("GREAT"); else if(d < 0.12) countJudge("GOOD"); else countJudge("MISS");
+    }
+    function countJudge(type) {
+        let c = "#fff";
+        if(type.includes("PERFECT")) { cntPerfect++; score += 1000 + combo*10; combo++; c="#00fff0"; }
+        else if(type === "GREAT") { cntGreat++; score += 700 + combo*5; combo++; c="#ffaa00"; }
+        else if(type === "GOOD") { cntGood++; score += 400; combo++; c="#00ff33"; } else { cntMiss++; combo = 0; c="#ff3333"; }
+        if(combo > maxCombo) maxCombo = combo; judgeTextEl.textContent = type; judgeTextEl.style.color = c; comboNumberEl.textContent = combo > 0 ? combo : ""; updateUI();
+    }
+    function updateUI() { scoreEl.textContent = String(score).padStart(6, '0'); }
+    function playSynthTone(freq) {
+        if(!audioCtx) return; let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain(); osc.type = 'triangle'; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+    }
+</script>
 </body>
 </html>
