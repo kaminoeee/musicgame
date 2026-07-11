@@ -315,12 +315,15 @@
         </div>
 
         <div class="panel-section" style="margin-bottom:0;">
-            <div class="section-title" style="color:#00bfff;">📋 4. 設定コード管理 (文字列コピペ用)</div>
-            <textarea id="export-code-output" style="height:45px; font-size:9px; font-family:monospace;" placeholder="ここに譜面データが出力されます。"></textarea>
-            <button id="import-code-btn" style="font-size:10px; padding:3px 10px; background:#005577; margin-top:3px; width:100%;">📥 文字列コードからインポート</button>
+            <div class="section-title" style="color:#00bfff;">📋 4. ゲームHTMLコード出力 (このまま動く完全版)</div>
+            <textarea id="export-code-output" style="height:65px; font-size:9px; font-family:monospace;" readonly placeholder="ここに全自動ビルドされたHTMLコードが出力されます。"></textarea>
+            <div class="flex-row" style="margin-top:4px;">
+                <button id="copy-html-btn" class="btn-pink" style="font-size:10px; padding:4px 10px; flex:1;">📋 HTMLコードをクリップボードにコピー</button>
+                <button id="import-code-btn" style="font-size:10px; padding:4px 10px; background:#005577; width:100px;">📥 データ読込</button>
+            </div>
         </div>
         
-        <div class="credit-text">POWERED BY EEESTUDIO RHYTHM ENGINE v1.5.0</div>
+        <div class="credit-text">POWERED BY EEESTUDIO RHYTHM ENGINE v1.6.0</div>
     </div>
 </div>
 
@@ -348,7 +351,7 @@
     let editingSongIdx = 0; let editingDiff = "normal";
     let selectedNodeType = "normal";
     let userSpeedMultiplier = 1.0; 
-    let isAdminMode = false; // 管理者フラグ
+    let isAdminMode = false;
 
     const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
     const baseScrollSpeed = 360; const targetY = 570; const pixelsPerSecond = 120;
@@ -381,7 +384,7 @@
     const sharedFileInput = document.getElementById('shared-file-load-input');
 
     window.addEventListener('DOMContentLoaded', () => {
-        checkAdminURL(); // URL管理判定チェック
+        checkAdminURL();
         refreshSongDropdowns();
         renderSelectionMenu();
         initTimeline();
@@ -389,17 +392,15 @@
         setupPalette();
     });
 
-    // 【機能追加】?_admin パラメータがついているかをチェックする関数
     function checkAdminURL() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.has('_admin')) {
             isAdminMode = true;
             document.getElementById('admin-badge').style.display = 'inline';
-            document.getElementById('editor-panel').style.display = 'flex'; // 管理者の場合はエディタを自動展開
+            document.getElementById('editor-panel').style.display = 'flex';
         }
     }
 
-    // 画面切り替えイベント
     document.getElementById('mode-editor-btn').addEventListener('click', () => {
         document.getElementById('editor-panel').style.display = 'flex';
     });
@@ -455,7 +456,6 @@
         });
     }
 
-    // 自動譜面ジェネレーター
     document.getElementById('execute-auto-gen').addEventListener('click', () => {
         if(SONGS_DATABASE.length === 0) return;
         const startBeat = parseFloat(document.getElementById('gen-start-beat').value) || 0;
@@ -482,7 +482,6 @@
         alert(`🤖 ${addedCount}個のノーツを自動配置しました！`);
     });
 
-    // 共通の譜面ファイル保存（ダウンロード）関数
     function downloadChartFile() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(SONGS_DATABASE, null, 4));
         const dlAnchor = document.createElement('a');
@@ -493,7 +492,6 @@
         dlAnchor.remove();
     }
 
-    // 共通の譜面ファイル読み込みハンドラ
     sharedFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -513,7 +511,6 @@
         reader.readAsText(file);
     });
 
-    // 各ボタンの紐付け
     document.getElementById('file-save-btn').addEventListener('click', downloadChartFile);
     document.getElementById('menu-file-save-btn').addEventListener('click', downloadChartFile);
     document.getElementById('file-load-trigger').addEventListener('click', () => sharedFileInput.click());
@@ -530,15 +527,19 @@
     document.getElementById('edit-song-bpm').addEventListener('input', (e) => { if(SONGS_DATABASE[editingSongIdx]) { SONGS_DATABASE[editingSongIdx].bpm = parseInt(e.target.value) || 120; initTimeline(); } });
 
     document.getElementById('import-code-btn').addEventListener('click', () => {
-        const rawCode = exportOutput.value.trim();
+        const rawCode = prompt("譜面データ(JSONまたは旧コード)を入力してください:");
+        if(!rawCode) return;
         try {
-            let jsonText = rawCode;
-            if (rawCode.startsWith("let SONGS_DATABASE = ")) jsonText = rawCode.replace("let SONGS_DATABASE = ", "").replace(/;$/, "");
+            let jsonText = rawCode.trim();
+            if (jsonText.includes("let SONGS_DATABASE = ")) {
+                const match = jsonText.match(/let SONGS_DATABASE = (\[[\s\S]*?\]);/);
+                if(match) jsonText = match[1];
+            }
             const parsed = JSON.parse(jsonText);
             if (Array.isArray(parsed)) {
-                SONGS_DATABASE = parsed; refreshSongDropdowns(); renderSelectionMenu(); initTimeline(); alert("インポート成功！");
+                SONGS_DATABASE = parsed; refreshSongDropdowns(); renderSelectionMenu(); initTimeline(); alert("データをインポートしました！");
             }
-        } catch(err) { alert("インポート失敗\n" + err); }
+        } catch(err) { alert("インポート失敗。正しい形式か確認してください。\n" + err); }
     });
 
     document.getElementById('execute-copy-btn').addEventListener('click', () => {
@@ -566,7 +567,37 @@
         });
     }
 
-    function updateCodeOutput() { exportOutput.value = "let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";"; }
+    // 【大幅強化】現在の譜面を含んだ「HTML全体のコード」を動的に組み立てる関数
+    function updateCodeOutput() {
+        const docType = "<!DOCTYPE html>\n";
+        const htmlOpen = "<html lang=\"ja\">\n" + document.documentElement.getElementsByTagName('head')[0].outerHTML + "\n<body>\n";
+        
+        // main-layout要素を取得し、内部状態を書き戻した上でHTMLテキスト化
+        const mainLayoutClone = document.getElementById('main-layout').cloneNode(true);
+        // 出力用エリアとファイルのバッティングを避けるため初期化
+        mainLayoutClone.querySelector('#export-code-output').textContent = "";
+        const bodyContent = mainLayoutClone.outerHTML + "\n";
+        
+        // スクリプト部分の再構築
+        let scriptStr = "<script>\n" + "    let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";\n\n";
+        
+        // 既存の動的ロジック（定数や関数群）を文字列として抽出して統合
+        const originScript = document.getElementsByTagName('script')[0].innerHTML;
+        // 重複防止のため、オリジナルの SONGS_DATABASE 定義部分を除去して結合
+        const cleanScript = originScript.replace(/let SONGS_DATABASE = [\s\S]*?];/, "");
+        
+        scriptStr += cleanScript + "\n<\/script>\n</body>\n</html>";
+        
+        exportOutput.value = docType + htmlOpen + bodyContent + scriptStr;
+    }
+
+    // クリップボードコピーのイベントリスナー
+    document.getElementById('copy-html-btn').addEventListener('click', () => {
+        exportOutput.select();
+        navigator.clipboard.writeText(exportOutput.value)
+            .then(() => alert("📋 HTML全体のコードをクリップボードにコピーしました！そのまま.htmlファイルに保存できます。"))
+            .catch(err => alert("コピーに失敗しました: " + err));
+    });
 
     function initTimeline() {
         timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
