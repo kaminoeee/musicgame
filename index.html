@@ -2,122 +2,87 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>神速譜面エディタ搭載 5Keyボカロ音ゲー</title>
+    <title>5Key音ゲー：全自動譜面ジェネレーター＆エディタ</title>
     <style>
         body {
-            margin: 0;
-            background-color: #0d0d16;
-            color: #fff;
+            margin: 0; background-color: #0c0c14; color: #fff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            display: flex;
-            flex-direction: row;
-            height: 100vh;
-            overflow: hidden;
+            display: flex; flex-direction: row; height: 100vh; overflow: hidden;
         }
-        #main-layout {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            padding: 12px;
-            box-sizing: border-box;
-            gap: 15px;
-        }
+        #main-layout { display: flex; width: 100%; height: 100%; padding: 12px; box-sizing: border-box; gap: 15px; }
+        
         /* 左側：ゲームエリア */
-        #game-area {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            flex: 1;
-        }
+        #game-area { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; }
         #game-container {
-            position: relative;
-            width: 450px;
-            height: 650px;
-            background-color: #111122;
-            border: 4px solid #3aa89b;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 0 25px rgba(58, 168, 155, 0.4);
+            position: relative; width: 450px; height: 650px; background-color: #101020;
+            border: 4px solid #3aa89b; border-radius: 12px; overflow: hidden; box-shadow: 0 0 25px rgba(58, 168, 155, 0.4);
         }
-        #lanes-container {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0; left: 0;
-        }
+        #lanes-container { display: flex; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         .lane {
-            flex: 1; height: 100%;
-            border-right: 1px dashed rgba(255, 255, 255, 0.08);
-            position: relative;
-            background: rgba(255, 255, 255, 0.005);
+            flex: 1; height: 100%; border-right: 1px dashed rgba(255, 255, 255, 0.08); position: relative;
+            background: rgba(255, 255, 255, 0.003);
         }
         .lane:last-child { border-right: none; }
-        .lane-key-hint {
-            position: absolute; bottom: 10px; left: 50%;
-            transform: translateX(-50%); font-size: 13px; font-weight: bold; color: #555577;
-        }
+        .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: bold; color: #555577; }
         #judge-line {
             position: absolute; bottom: 80px; left: 0; width: 100%; height: 6px;
-            background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b);
-            box-shadow: 0 0 15px #00fff0; pointer-events: none;
+            background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b); box-shadow: 0 0 15px #00fff0; pointer-events: none;
         }
         /* ノーツ */
         .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; }
         .note-normal { background: linear-gradient(90deg, #00fff0, #00aa99); box-shadow: 0 0 8px #00fff0; }
         .note-flick { background: linear-gradient(90deg, #ff007f, #ff00ff); box-shadow: 0 0 10px #ff007f; height: 14px; border-radius: 10px; }
         .note-long { background: linear-gradient(90deg, #00ff66, #009933); box-shadow: 0 0 8px #00ff66; }
-        .long-body {
-            position: absolute; width: 80%; left: 10%; background: rgba(0, 255, 102, 0.25);
-            border-left: 2px solid #00ff66; border-right: 2px solid #00ff66; pointer-events: none;
-        }
-        /* UI */
+        .long-body { position: absolute; width: 80%; left: 10%; background: rgba(0, 255, 102, 0.25); border-left: 2px solid #00ff66; border-right: 2px solid #00ff66; pointer-events: none; }
+        
+        /* UI・テキスト */
         #ui-top { position: absolute; top: 15px; left: 20px; font-size: 18px; font-family: monospace; z-index: 10; }
         #combo-container { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 10; }
         #combo-number { font-size: 54px; font-weight: bold; color: #00fff0; text-shadow: 0 0 12px rgba(0,255,240,0.6); }
         #judge-text { font-size: 28px; font-weight: bold; height: 35px; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
         
-        /* 共通画面レイヤー */
+        /* 各種画面オーバーレイ */
         .overlay-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(12, 12, 24, 0.96); display: flex; flex-direction: column;
+            background: rgba(10, 10, 20, 0.98); display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 20; text-align: center; padding: 20px; box-sizing: border-box;
         }
         
+        /* 楽曲選択メニュー */
+        .song-card {
+            background: #1a1a30; border: 1px solid #444; border-radius: 8px; padding: 10px; width: 85%;
+            margin-bottom: 10px; cursor: pointer; text-align: left; transition: 0.2s;
+        }
+        .song-card.selected { border-color: #00fff0; background: #202045; }
+        .diff-selector { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
+        .diff-btn {
+            flex: 1; padding: 4px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; background: #333; color: #aaa; cursor: pointer;
+        }
+        .diff-btn.active[data-diff="easy"] { background: #00ff66; color: #000; }
+        .diff-btn.active[data-diff="normal"] { background: #00fff0; color: #000; }
+        .diff-btn.active[data-diff="hard"] { background: #ff007f; color: #fff; }
+
         /* 右側：エディタ */
         #editor-panel {
-            width: 480px; background-color: #151525; border: 2px solid #ff007f;
+            width: 480px; background-color: #141424; border: 2px solid #ff007f;
             border-radius: 12px; padding: 15px; box-sizing: border-box;
             display: flex; flex-direction: column; box-shadow: 0 0 20px rgba(255, 0, 127, 0.15);
         }
-        .panel-section { background: #1c1c35; padding: 10px; border-radius: 6px; margin-bottom: 10px; }
-        .section-title { color: #ff007f; font-size: 13px; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; }
+        .panel-section { background: #1b1b32; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
+        .section-title { color: #ff007f; font-size: 13px; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; }
         
-        /* ノーツパレット(選択肢) */
-        .palette-group { display: flex; gap: 5px; margin-bottom: 8px; }
-        .palette-btn {
-            flex: 1; padding: 8px; font-size: 11px; font-weight: bold; border-radius: 4px; border: 2px solid transparent; cursor: pointer; background: #252545; color: #fff;
-        }
-        .palette-btn.active[data-type="normal"] { border-color: #00fff0; background: #004455; }
-        .palette-btn.active[data-type="flick"] { border-color: #ff007f; background: #550033; }
-        .palette-btn.active[data-type="long-start"] { border-color: #00ff66; background: #004422; }
-        .palette-btn.active[data-type="long-end"] { border-color: #aaff00; background: #334400; }
+        .palette-group { display: flex; gap: 4px; }
+        .palette-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: 2px solid transparent; cursor: pointer; background: #242440; color: #fff; }
+        .palette-btn.active[data-type="normal"] { border-color: #00fff0; background: #003344; }
+        .palette-btn.active[data-type="flick"] { border-color: #ff007f; background: #440022; }
+        .palette-btn.active[data-type="long-start"] { border-color: #00ff66; background: #003311; }
+        .palette-btn.active[data-type="long-end"] { border-color: #aaff00; background: #223300; }
 
         /* タイムライン */
-        #timeline-container {
-            flex: 1; background: #090912; border: 1px solid #333; border-radius: 6px;
-            position: relative; overflow-y: scroll; min-height: 200px;
-        }
+        #timeline-container { flex: 1; background: #080810; border: 1px solid #333; border-radius: 6px; position: relative; overflow-y: scroll; min-height: 150px; }
         #timeline-grid { position: relative; width: 100%; height: 3000px; }
-        .timeline-line {
-            position: absolute; left: 0; width: 100%; border-bottom: 1px solid #1e1e30;
-            color: #555; font-size: 9px; padding-left: 4px; box-sizing: border-box; pointer-events: none;
-        }
-        .timeline-note {
-            position: absolute; height: 14px; border-radius: 3px; cursor: pointer;
-            text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; color: #000; width: 15%;
-        }
+        .timeline-line { position: absolute; left: 0; width: 100%; border-bottom: 1px solid #1a1a26; color: #444; font-size: 9px; padding-left: 4px; box-sizing: border-box; pointer-events: none; }
+        .timeline-note { position: absolute; height: 14px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; color: #000; width: 15%; }
         .tl-normal { background: #00fff0; }
         .tl-flick { background: #ff007f; }
         .tl-long-start { background: #00ff66; }
@@ -125,16 +90,15 @@
         .tl-body-line { position: absolute; width: 4px; background: rgba(0, 255, 102, 0.4); pointer-events: none; transform: translateX(6px); }
 
         button { background: #3aa89b; color: white; border: none; padding: 8px 16px; font-size: 13px; border-radius: 15px; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #00fff0; color: #111122; box-shadow: 0 0 10px #00fff0; }
+        button:hover { background: #00fff0; color: #101020; box-shadow: 0 0 10px #00fff0; }
         .btn-pink { background: #ff007f; }
         .btn-pink:hover { background: #ff55aa; box-shadow: 0 0 10px #ff007f; }
+        .btn-blue { background: #00bfff; }
+        .btn-blue:hover { background: #66d9ff; box-shadow: 0 0 10px #00bfff; }
         
         .flex-row { display: flex; gap: 8px; align-items: center; }
         #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: red; box-shadow: 0 0 6px red; z-index: 5; pointer-events: none; }
-        
-        /* リザルトの数値強調 */
-        .result-score { font-size: 36px; color: #00fff0; font-weight: bold; font-family: monospace; }
-        .result-details { margin: 15px 0; font-size: 14px; text-align: left; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; min-width: 200px;}
+        input, select { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -143,7 +107,6 @@
     <div id="game-area">
         <div id="game-container">
             <div id="ui-top">SCORE: <span id="score">000000</span></div>
-            
             <div id="lanes-container">
                 <div class="lane" id="lane-0"><span class="lane-key-hint">A</span></div>
                 <div class="lane" id="lane-1"><span class="lane-key-hint">S</span></div>
@@ -151,120 +114,146 @@
                 <div class="lane" id="lane-3"><span class="lane-key-hint">K</span></div>
                 <div class="lane" id="lane-4"><span class="lane-key-hint">L</span></div>
             </div>
-            
             <div id="judge-line"></div>
             <div id="notes-layer"></div>
-
             <div id="combo-container">
                 <div id="judge-text"></div>
                 <div id="combo-number"></div>
             </div>
 
-            <div id="start-screen" class="overlay-screen">
-                <h2 id="disp-title" style="color: #00fff0; margin: 0;">メルト (Melt) - Custom 5Key</h2>
-                <p id="disp-credit" style="margin: 5px 0; font-size:13px; color:#aaa;">作詞・作曲：ryo / 唄：初音ミク</p>
-                <button id="start-btn" style="margin-top:20px; font-size:16px; padding:12px 30px;">ゲームスタート</button>
+            <div id="title-screen" class="overlay-screen">
+                <h1 style="color: #00fff0; margin: 0 0 10px 0; font-size: 28px;">POLYPHONIC 5KEY</h1>
+                <p style="color: #888; font-size: 12px; margin-bottom: 30px;">~ 直感譜面制作・シミュレーター ~</p>
+                <button id="mode-single-btn" style="width: 200px; font-size: 15px; margin-bottom: 10px;">シングルプレイ</button>
+                <button id="mode-multi-btn" style="width: 200px; font-size: 14px; background: #333; color: #666; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
+            </div>
+
+            <div id="select-screen" class="overlay-screen" style="display: none;">
+                <h3 style="color: #ff007f; margin: 0 0 15px 0;">SELECT MUSIC</h3>
+                
+                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:320px; overflow-y:auto;" id="song-list-container">
+                    </div>
+
+                <div class="flex-row" style="margin-top: 25px; width: 85%;">
+                    <button id="select-back-btn" style="background:#555;">戻る</button>
+                    <button id="start-game-btn" class="btn-pink" style="flex:1; font-size:15px; font-weight:bold;">GAME START</button>
+                </div>
             </div>
 
             <div id="result-screen" class="overlay-screen" style="display: none;">
                 <h2 style="color: #ff007f; margin: 0;">STAGE CLEAR</h2>
-                <div class="result-score" id="res-score">000000</div>
-                <div class="result-details">
-                    Max Combo: <span id="res-combo" style="color:#fff; float:right;">0</span><br>
+                <div style="font-size: 32px; color: #00fff0; font-weight: bold; font-family: monospace;" id="res-score">000000</div>
+                <div style="margin: 10px 0; font-size: 13px; text-align: left; background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; min-width: 220px;">
+                    Max Combo: <span id="res-combo" style="float:right;">0</span><br>
                     <span style="color:#00fff0;">PERFECT:</span> <span id="res-p" style="float:right;">0</span><br>
                     <span style="color:#ffaa00;">GREAT:</span> <span id="res-g" style="float:right;">0</span><br>
                     <span style="color:#00ff33;">GOOD:</span> <span id="res-gd" style="float:right;">0</span><br>
                     <span style="color:#ff3333;">MISS:</span> <span id="res-m" style="float:right;">0</span>
                 </div>
-                <button id="retry-btn" class="btn-pink" style="font-size:16px; padding:10px 30px;">もう一度挑戦する</button>
+                <div class="flex-row" style="width: 80%;">
+                    <button id="res-to-menu-btn" style="background:#555; flex:1;">選曲へ戻る</button>
+                    <button id="retry-btn" class="btn-pink" style="flex:1;">再挑戦</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div id="editor-panel">
-        <div style="font-size: 15px; font-weight: bold; color: #ff007f; margin-bottom: 8px; border-bottom: 1px solid #ff007f; padding-bottom:4px;">
-            🛠 選択配置式・直感譜面エディタ
+        <div style="font-size: 14px; font-weight: bold; color: #ff007f; margin-bottom: 6px; border-bottom: 1px solid #ff007f; padding-bottom:2px;">
+            ⚙️ 楽曲追加・難易度別譜面エディタ
         </div>
         
         <div class="panel-section">
-            <div class="section-title">✏️ 1. ノーツパレット（選択して配置）</div>
+            <div class="section-title">🎵 1. 編集する楽曲・難易度を選択</div>
+            <div class="flex-row">
+                <select id="edit-song-index" style="flex:2;"></select>
+                <select id="edit-diff-zone" style="flex:1;">
+                    <option value="easy">EASY</option>
+                    <option value="normal" selected>NORMAL</option>
+                    <option value="hard">HARD</option>
+                </select>
+            </div>
+            <div class="flex-row" style="margin-top:6px;">
+                <input type="text" id="new-song-title" placeholder="新規追加する曲名" style="flex:2;">
+                <button id="add-new-song-btn" style="font-size:11px; padding:4px 8px;">楽曲追加</button>
+            </div>
+            <label>音源URL (.mp3直リンク)</label>
+            <input type="text" id="edit-song-url" placeholder="空欄時はシンセ音が鳴ります">
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">✏️ 2. ノーツパレット</div>
             <div class="palette-group">
                 <button class="palette-btn active" data-type="normal">■ 単押し</button>
                 <button class="palette-btn" data-type="flick">▲ フリック</button>
-                <button class="palette-btn" data-type="long-start">▼ ロング始点</button>
-                <button class="palette-btn" data-type="long-end">▲ ロング終点</button>
-            </div>
-            <div style="font-size:10px; color:#bbb;">
-                ※配置方法: 種類を選び、下のタイムラインを<strong>左クリック</strong>。右クリックで削除。<br>
-                ※ロングは同じレーンの<strong>「始点」の後に「終点」</strong>を置いてください。
+                <button class="palette-btn" data-type="long-start">▼ 長始点</button>
+                <button class="palette-btn" data-type="long-end">▲ 長終点</button>
             </div>
         </div>
 
         <div class="panel-section" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
             <div class="section-title">
-                <span>⏱ 2. タイムライン再生・シーク</span>
-                <span style="font-size:10px; color:#aaa;">ダブルクリックでその場面にワープ再生</span>
+                <span>⏱ 3. タイムライン (Wクリックでワープ再生)</span>
             </div>
-            <div class="flex-row" style="margin-bottom: 6px;">
-                <button id="edit-play-btn" style="font-size:11px; padding:5px 12px;">⏯ 再生 / 一時停止</button>
+            <div class="flex-row" style="margin-bottom: 4px;">
+                <button id="edit-play-btn" style="font-size:11px; padding:4px 10px;">⏯ 再生/一時停止</button>
                 <span id="editor-time-disp" style="font-family:monospace; font-size:12px; color:#00fff0;">0.00s</span>
-                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:5px 10px; margin-left:auto;">全削除</button>
+                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:4px 8px; margin-left:auto;">全消去</button>
             </div>
-            
             <div id="timeline-container">
-                <div id="timeline-grid">
-                    <div id="play-cursor"></div>
-                </div>
+                <div id="timeline-grid"><div id="play-cursor"></div></div>
             </div>
         </div>
 
-        <div class="panel-section">
-            <div class="section-title">🎵 3. 外部カスタム音源設定（自由変更用）</div>
-            <input type="text" id="edit-url" placeholder="空欄時は流し打ち確認用の音が鳴ります (.mp3直リンクなど)" style="width:100%; background:#090912; border:1px solid #444; color:#fff; padding:5px; font-size:11px; border-radius:4px;">
-            <button id="apply-editor-btn" class="btn-pink" style="width:100%; margin-top:8px; font-weight:bold;">譜面と音源をゲームに適用</button>
+        <div class="panel-section" style="margin-bottom:0;">
+            <div class="section-title" style="color:#00bfff;">💾 4. 作成した全データを書き出し保存</div>
+            <button id="export-html-btn" class="btn-blue" style="width:100%; font-weight:bold; font-size:13px; padding:10px;">
+                📥 この譜面入りのゲームをHTMLとして保存
+            </button>
         </div>
     </div>
 </div>
 
 <script>
-    // --- データマネジメント ---
-    let currentSong = {
-        title: "メルト (Melt) - Custom 5Key",
-        credit: "作詞・作曲：ryo / 唄：初音ミク",
-        url: "",
-        chart: [
-            {lane: 0, time: 1.0, type: "normal"}, {lane: 1, time: 1.5, type: "normal"},
-            {lane: 2, time: 2.0, type: "flick"},  {lane: 3, time: 2.5, type: "normal"},
-            // サンプルのロングノーツ
-            {lane: 4, time: 3.0, type: "long-start"}, {lane: 4, time: 4.5, type: "long-end"}
-        ]
-    };
+    // --- 永続データベース（ここへ全データを詰め込む） ---
+    // ※自動生成時、この変数の中身がそっくり書き換えられて出力されます
+    let SONGS_DATABASE = [
+        {
+            title: "メルト (Melt)",
+            url: "",
+            charts: {
+                easy: [{lane: 2, time: 1.0, type: "normal"}, {lane: 2, time: 3.0, type: "normal"}],
+                normal: [
+                    {lane: 0, time: 1.0, type: "normal"}, {lane: 1, time: 1.5, type: "normal"},
+                    {lane: 2, time: 2.0, type: "flick"},  {lane: 3, time: 2.5, type: "normal"},
+                    {lane: 4, time: 3.0, type: "long-start"}, {lane: 4, time: 4.5, type: "long-end"}
+                ],
+                hard: [{lane: 0, time: 0.5, type: "flick"}, {lane: 1, time: 0.7, type: "flick"}, {lane: 2, time: 0.9, type: "flick"}]
+            }
+        }
+    ];
+
+    // グローバル選択状態
+    let selectedSongIdx = 0;
+    let selectedDiff = "normal"; // ゲームプレイ用
+    let editingSongIdx = 0;
+    let editingDiff = "normal"; // エディタ用
+    let selectedNodeType = "normal";
 
     const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
-    const scrollSpeed = 360; 
-    const targetY = 570; 
-    const pixelsPerSecond = 120; // エディタの1秒＝120px
+    const scrollSpeed = 360; const targetY = 570; const pixelsPerSecond = 120;
 
-    // パレット状態
-    let selectedNodeType = 'normal';
-
-    // ゲーム用変数
-    let gameStarted = false;
-    let audioCtx = null;
-    let audioHtml = null;
-    let startTime = 0;
-    let pauseTimeOffset = 0; 
-    let isPlayingInEditor = false;
-    
-    // スコア・リザルト用カウンタ
+    // 稼働ステート
+    let gameStarted = false; let isPlayingInEditor = false;
+    let audioCtx = null; let audioHtml = null;
+    let startTime = 0; let pauseTimeOffset = 0;
     let score = 0; let combo = 0; let maxCombo = 0;
     let cntPerfect = 0; let cntGreat = 0; let cntGood = 0; let cntMiss = 0;
     let activeNotes = [];
 
-    // DOMキャッシュ
-    const startBtn = document.getElementById('start-btn');
-    const retryBtn = document.getElementById('retry-btn');
-    const startScreen = document.getElementById('start-screen');
+    // DOM群
+    const titleScreen = document.getElementById('title-screen');
+    const selectScreen = document.getElementById('select-screen');
     const resultScreen = document.getElementById('result-screen');
     const notesLayer = document.getElementById('notes-layer');
     const scoreEl = document.getElementById('score');
@@ -274,147 +263,188 @@
     const timelineContainer = document.getElementById('timeline-container');
     const playCursor = document.getElementById('play-cursor');
     const timeDisp = document.getElementById('editor-time-disp');
-    const paletteBtns = document.querySelectorAll('.palette-btn');
 
     window.addEventListener('DOMContentLoaded', () => {
+        refreshSongDropdowns();
+        renderSelectionMenu();
         initTimeline();
         setupPalette();
     });
 
-    // パレットの切り替え
+    // --- 各種セレクト画面のUI構築 ---
+    function refreshSongDropdowns() {
+        const select = document.getElementById('edit-song-index');
+        select.innerHTML = '';
+        SONGS_DATABASE.forEach((s, idx) => {
+            const opt = document.createElement('option');
+            opt.value = idx; opt.textContent = s.title;
+            select.appendChild(opt);
+        });
+        select.value = editingSongIdx;
+        document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
+    }
+
+    function renderSelectionMenu() {
+        const container = document.getElementById('song-list-container');
+        container.innerHTML = '';
+        SONGS_DATABASE.forEach((song, idx) => {
+            const card = document.createElement('div');
+            card.className = `song-card ${idx === selectedSongIdx ? 'selected' : ''}`;
+            card.innerHTML = `<strong>🎵 ${song.title}</strong>`;
+            
+            const div = document.createElement('div');
+            div.className = "diff-selector";
+            ['easy','normal','hard'].forEach(d => {
+                const b = document.createElement('button');
+                b.className = `diff-btn ${(idx===selectedSongIdx && selectedDiff===d)?'active':''}`;
+                b.setAttribute('data-diff', d);
+                b.textContent = d.toUpperCase();
+                b.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    selectedSongIdx = idx;
+                    selectedDiff = d;
+                    renderSelectionMenu();
+                });
+                div.appendChild(b);
+            });
+            
+            card.addEventListener('click', () => {
+                selectedSongIdx = idx;
+                renderSelectionMenu();
+            });
+            card.appendChild(div);
+            container.appendChild(card);
+        });
+    }
+
+    // エディタ切り替え処理
+    document.getElementById('edit-song-index').addEventListener('change', (e) => {
+        editingSongIdx = parseInt(e.target.value);
+        document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
+        initTimeline();
+    });
+    document.getElementById('edit-diff-zone').addEventListener('change', (e) => {
+        editingDiff = e.target.value;
+        initTimeline();
+    });
+    document.getElementById('edit-song-url').addEventListener('input', (e) => {
+        SONGS_DATABASE[editingSongIdx].url = e.target.value.trim();
+    });
+
+    // 曲追加
+    document.getElementById('add-new-song-btn').addEventListener('click', () => {
+        const title = document.getElementById('new-song-title').value.trim() || "新楽曲";
+        SONGS_DATABASE.push({
+            title: title, url: "",
+            charts: { easy: [], normal: [], hard: [] }
+        });
+        editingSongIdx = SONGS_DATABASE.length - 1;
+        document.getElementById('new-song-title').value = '';
+        refreshSongDropdowns();
+        renderSelectionMenu();
+        initTimeline();
+    });
+
+    // パレット設定
     function setupPalette() {
-        paletteBtns.forEach(btn => {
+        document.querySelectorAll('.palette-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                paletteBtns.forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 selectedNodeType = btn.getAttribute('data-type');
             });
         });
     }
 
-    // --- タイムラインエディタ設計 ---
+    // --- シーンナビゲーション ---
+    document.getElementById('mode-single-btn').addEventListener('click', () => {
+        titleScreen.style.display = 'none';
+        selectScreen.style.display = 'flex';
+    });
+    document.getElementById('select-back-btn').addEventListener('click', () => {
+        selectScreen.style.display = 'none';
+        titleScreen.style.display = 'flex';
+    });
+    document.getElementById('res-to-menu-btn').addEventListener('click', () => {
+        resultScreen.style.display = 'none';
+        selectScreen.style.display = 'flex';
+    });
+
+    // --- タイムライン構築 ---
     function initTimeline() {
-        // 初期化
         timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
-        const totalDuration = 200; // 200秒分枠
-        timelineGrid.style.height = (totalDuration * pixelsPerSecond) + 'px';
-
-        // 補助線の描画（1秒刻み）
-        for(let sec = 0; sec < totalDuration; sec++) {
-            const line = document.createElement('div');
-            line.className = 'timeline-line';
-            line.style.bottom = (sec * pixelsPerSecond) + 'px';
-            line.textContent = sec + 's';
-            timelineGrid.appendChild(line);
-        }
-
-        // ロングノーツの「始点と終点の結合線」を描画する
-        for(let l = 0; l < 5; l++) {
-            const laneNotes = currentSong.chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
+        const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+        
+        // ロング結線
+        for(let l=0; l<5; l++) {
+            const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
             for(let i=0; i<laneNotes.length; i++) {
                 if(laneNotes[i].type === 'long-start') {
-                    // 次の終点を探す
                     const nextEnd = laneNotes.slice(i+1).find(n => n.type === 'long-end');
                     if(nextEnd) {
-                        const bodyLine = document.createElement('div');
-                        bodyLine.className = 'tl-body-line';
-                        const bottomY = laneNotes[i].time * pixelsPerSecond;
-                        const topY = nextEnd.time * pixelsPerSecond;
-                        bodyLine.style.bottom = bottomY + 'px';
-                        bodyLine.style.height = (topY - bottomY) + 'px';
-                        bodyLine.style.left = (10 + l * 18) + '%';
-                        timelineGrid.appendChild(bodyLine);
+                        const bl = document.createElement('div'); bl.className = 'tl-body-line';
+                        bl.style.bottom = (laneNotes[i].time * pixelsPerSecond) + 'px';
+                        bl.style.height = ((nextEnd.time - laneNotes[i].time) * pixelsPerSecond) + 'px';
+                        bl.style.left = (10 + l * 18) + '%';
+                        timelineGrid.appendChild(bl);
                     }
                 }
             }
         }
 
-        // ノーツの描画
-        currentSong.chart.forEach((note, index) => {
+        // 配置ノーツ
+        chart.forEach((note, index) => {
             const noteEl = document.createElement('div');
             noteEl.className = `timeline-note tl-${note.type}`;
             noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px';
             noteEl.style.left = (10 + note.lane * 18) + '%';
+            noteEl.textContent = note.type==='normal'?'単':note.type==='flick'?'払':note.type==='long-start'?'長始':'長終';
             
-            let label = "単";
-            if(note.type === 'flick') label = "払";
-            if(note.type === 'long-start') label = "長始";
-            if(note.type === 'long-end') label = "長終";
-            noteEl.textContent = label;
-
-            // 右クリックで削除
             noteEl.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                currentSong.chart.splice(index, 1);
-                initTimeline();
+                e.preventDefault(); chart.splice(index, 1); initTimeline();
             });
-
             timelineGrid.appendChild(noteEl);
         });
     }
 
-    // パレットによるノーツ配置
     timelineGrid.addEventListener('click', (e) => {
         if(gameStarted || isPlayingInEditor) return;
         const rect = timelineGrid.getBoundingClientRect();
-        const clickY = rect.bottom - e.clientY;
-        const clickX = e.clientX - rect.left;
-        
-        const clickTime = Math.round((clickY / pixelsPerSecond) * 100) / 100;
-        const clickLane = Math.floor((clickX / rect.width) * 5);
-        
-        if(clickLane >= 0 && clickLane < 5 && clickTime >= 0) {
-            // 同位置の重複削除
-            currentSong.chart = currentSong.chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.08));
-            
-            // 配置
-            currentSong.chart.push({
-                lane: clickLane,
-                time: clickTime,
-                type: selectedNodeType
-            });
-            currentSong.chart.sort((a,b) => a.time - b.time);
+        const clickTime = Math.round(((rect.bottom - e.clientY) / pixelsPerSecond) * 100) / 100;
+        const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
+        if(clickLane >=0 && clickLane < 5 && clickTime >= 0) {
+            const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+            // 重複消去
+            SONGS_DATABASE[editingSongIdx].charts[editingDiff] = chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.08));
+            SONGS_DATABASE[editingSongIdx].charts[editingDiff].push({ lane: clickLane, time: clickTime, type: selectedNodeType });
+            SONGS_DATABASE[editingSongIdx].charts[editingDiff].sort((a,b)=>a.time - b.time);
             initTimeline();
         }
     });
 
-    // 【重要機能】ダブルクリックでその場面の音源を流す
     timelineGrid.addEventListener('dblclick', (e) => {
         const rect = timelineGrid.getBoundingClientRect();
-        const clickY = rect.bottom - e.clientY;
-        const clickTime = Math.max(0, Math.round((clickY / pixelsPerSecond) * 100) / 100);
-        
-        pauseTimeOffset = clickTime;
+        pauseTimeOffset = Math.max(0, Math.round(((rect.bottom - e.clientY) / pixelsPerSecond) * 100) / 100);
         timeDisp.textContent = pauseTimeOffset.toFixed(2) + "s";
         playCursor.style.bottom = (pauseTimeOffset * pixelsPerSecond) + 'px';
-
-        // 再生中ならシークさせて鳴らす
         if(isPlayingInEditor) {
             startTime = performance.now() - (pauseTimeOffset * 1000);
-            if(audioHtml) {
-                audioHtml.currentTime = pauseTimeOffset;
-                audioHtml.play().catch(()=>{});
-            }
+            if(audioHtml) { audioHtml.currentTime = pauseTimeOffset; audioHtml.play().catch(()=>{}); }
         }
     });
 
-    // --- エディタ再生・停止コントロール ---
+    // エディタ再生制御
     document.getElementById('edit-play-btn').addEventListener('click', () => {
         if(!isPlayingInEditor) {
-            isPlayingInEditor = true;
-            startTime = performance.now() - (pauseTimeOffset * 1000);
-            if(currentSong.url) {
-                if(!audioHtml) audioHtml = new Audio(currentSong.url);
-                audioHtml.currentTime = pauseTimeOffset;
-                audioHtml.play().catch(()=>{});
-            } else {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
+            isPlayingInEditor = true; startTime = performance.now() - (pauseTimeOffset * 1000);
+            const url = SONGS_DATABASE[editingSongIdx].url;
+            if(url) {
+                if(!audioHtml) audioHtml = new Audio(url);
+                audioHtml.currentTime = pauseTimeOffset; audioHtml.play().catch(()=>{});
+            } else { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
             requestAnimationFrame(updateEditorTimeline);
         } else {
-            isPlayingInEditor = false;
-            if(audioHtml) audioHtml.pause();
-            pauseTimeOffset = getCurrentTime();
+            isPlayingInEditor = false; if(audioHtml) audioHtml.pause(); pauseTimeOffset = getCurrentTime();
         }
     });
 
@@ -422,284 +452,177 @@
         if(!isPlayingInEditor) return;
         const curTime = getCurrentTime();
         timeDisp.textContent = curTime.toFixed(2) + "s";
-        playCursor.style.bottom = (curTime * pixelsPerSecond) + 'px';
-        
-        // 自動スクロール
         const y = curTime * pixelsPerSecond;
-        if(y > 100) {
-            timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
-        }
+        playCursor.style.bottom = y + 'px';
+        if(y > 100) timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
         requestAnimationFrame(updateEditorTimeline);
     }
 
     document.getElementById('clear-chart-btn').addEventListener('click', () => {
-        if(confirm("全ての譜面データをリセットしますか？")) {
-            currentSong.chart = [];
-            initTimeline();
-        }
+        if(confirm("この譜面をリセットしますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
     });
 
-    document.getElementById('apply-editor-btn').addEventListener('click', () => {
-        currentSong.url = document.getElementById('edit-url').value.trim();
-        initTimeline();
-        alert("ゲームへ適用しました！");
-    });
-
-
-    // --- ゲームの実行・判定システム ---
-    function startPlaylistGame() {
-        // カウンタ初期化
-        score = 0; combo = 0; maxCombo = 0;
-        cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
-        updateUI();
+    // --- ゲームコアシステム ---
+    function initGamePlay() {
+        score = 0; combo = 0; maxCombo = 0; cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
+        updateUI(); notesLayer.innerHTML = ''; activeNotes = [];
+        judgeTextEl.textContent = ''; comboNumberEl.textContent = '';
         
-        notesLayer.innerHTML = '';
-        activeNotes = [];
-        judgeTextEl.textContent = '';
-        comboNumberEl.textContent = '';
-        
-        startScreen.style.display = 'none';
-        resultScreen.style.display = 'none';
-        
-        gameStarted = true;
-        isPlayingInEditor = false;
+        selectScreen.style.display = 'none'; resultScreen.style.display = 'none';
+        gameStarted = true; isPlayingInEditor = false;
 
-        if (currentSong.url) {
+        const song = SONGS_DATABASE[selectedSongIdx];
+        if (song.url) {
             if(audioHtml) audioHtml.pause();
-            audioHtml = new Audio(currentSong.url);
-            audioHtml.play().then(() => {
-                startTime = performance.now();
-                generateInGameNotes();
-                requestAnimationFrame(gameUpdate);
-            }).catch(() => {
-                alert("音源エラー。URLが無効な可能性があります。");
-                stopGameAndShowResult(false);
-            });
+            audioHtml = new Audio(song.url);
+            audioHtml.play().then(() => { startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate); })
+            .catch(() => { alert("音源再生エラー"); stopGame(false); });
         } else {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            startTime = performance.now();
-            generateInGameNotes();
-            requestAnimationFrame(gameUpdate);
+            startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate);
         }
     }
 
-    startBtn.addEventListener('click', startPlaylistGame);
-    retryBtn.addEventListener('click', startPlaylistGame); // 再挑戦
+    document.getElementById('start-game-btn').addEventListener('click', initGamePlay);
+    document.getElementById('retry-btn').addEventListener('click', initGamePlay);
 
     function getCurrentTime() {
-        if(gameStarted || isPlayingInEditor) {
-            if (currentSong.url && audioHtml) return audioHtml.currentTime;
-            return (performance.now() - startTime) / 1000;
-        }
-        return pauseTimeOffset;
+        if((gameStarted || isPlayingInEditor) && SONGS_DATABASE[gameStarted?selectedSongIdx:editingSongIdx].url && audioHtml) return audioHtml.currentTime;
+        return (performance.now() - startTime) / 1000;
     }
 
-    // 内部的なロングノーツの接続処理
-    function generateInGameNotes() {
-        // 処理用にレーンごとに分ける
+    function buildGameNotes(chart) {
         for(let l=0; l<5; l++) {
-            const laneNotes = currentSong.chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
-            
+            const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
             for(let i=0; i<laneNotes.length; i++) {
                 const note = laneNotes[i];
-                if(note.type === 'normal' || note.type === 'flick') {
-                    createNoteElement(note, note.type, 0);
-                } else if(note.type === 'long-start') {
-                    // ペアになる終点を探す
-                    const pairEnd = laneNotes.slice(i+1).find(n => n.type === 'long-end');
-                    if(pairEnd) {
-                        const duration = pairEnd.time - note.time;
-                        createNoteElement(note, 'long', duration);
-                    } else {
-                        // 終点がない場合は単押しに救済
-                        createNoteElement(note, 'normal', 0);
-                    }
+                if(note.type === 'normal' || note.type === 'flick') { addNodeToEngine(note, note.type, 0); }
+                else if(note.type === 'long-start') {
+                    const pair = laneNotes.slice(i+1).find(n => n.type === 'long-end');
+                    if(pair) addNodeToEngine(note, 'long', pair.time - note.time);
+                    else addNodeToEngine(note, 'normal', 0);
                 }
             }
         }
     }
 
-    function createNoteElement(note, type, duration) {
-        const noteEl = document.createElement('div');
-        noteEl.className = `note note-${type === 'long' ? 'long' : type}`;
-        
+    function addNodeToEngine(note, type, duration) {
+        const el = document.createElement('div'); el.className = `note note-${type==='long'?'long':type}`;
         let bodyEl = null;
-        if(type === 'long') {
-            bodyEl = document.createElement('div');
-            bodyEl.className = 'long-body';
-            document.getElementById(`lane-${note.lane}`).appendChild(bodyEl);
-        }
-        document.getElementById(`lane-${note.lane}`).appendChild(noteEl);
-
-        activeNotes.push({
-            lane: note.lane,
-            time: note.time,
-            type: type,
-            duration: duration,
-            element: noteEl,
-            bodyElement: bodyEl,
-            hit: false, tailHit: false
-        });
+        if(type === 'long') { bodyEl = document.createElement('div'); bodyEl.className = 'long-body'; document.getElementById(`lane-${note.lane}`).appendChild(bodyEl); }
+        document.getElementById(`lane-${note.lane}`).appendChild(el);
+        activeNotes.push({ lane: note.lane, time: note.time, type: type, duration: duration, element: el, bodyElement: bodyEl, hit: false, tailHit: false });
     }
 
     function gameUpdate() {
         if (!gameStarted) return;
         const curTime = getCurrentTime();
         playCursor.style.bottom = (curTime * pixelsPerSecond) + 'px';
-
-        let liveNotesLeft = false;
+        let remaining = false;
 
         activeNotes.forEach(note => {
             const timeRemaining = note.time - curTime;
             const currentY = targetY - (timeRemaining * scrollSpeed);
-            
-            if(!note.hit) {
-                note.element.style.top = currentY + 'px';
-                liveNotesLeft = true;
-            } else if(note.type === 'long' && !note.tailHit) {
-                note.element.style.top = targetY + 'px';
-                liveNotesLeft = true;
-            }
+            if(!note.hit) { note.element.style.top = currentY + 'px'; remaining = true; }
+            else if(note.type === 'long' && !note.tailHit) { note.element.style.top = targetY + 'px'; remaining = true; }
 
             if(note.type === 'long' && note.bodyElement) {
-                const tailRemaining = (note.time + note.duration) - curTime;
-                const tailY = targetY - (tailRemaining * scrollSpeed);
                 const headY = note.hit ? targetY : currentY;
-                note.bodyElement.style.top = tailY + 'px';
-                note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
+                const tailY = targetY - (((note.time + note.duration) - curTime) * scrollSpeed);
+                note.bodyElement.style.top = tailY + 'px'; note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
             }
 
-            // 見逃しMISS判定
-            if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) {
-                note.hit = true; note.element.remove();
-                processResultCount("MISS");
-            } else if(note.type === 'long') {
-                if(!note.hit && timeRemaining < -0.15) {
-                    note.hit = true; note.tailHit = true;
-                    note.element.remove(); if(note.bodyElement) note.bodyElement.remove();
-                    processResultCount("MISS");
-                } else if(note.hit && !note.tailHit) {
-                    const tailRemaining = (note.time + note.duration) - curTime;
-                    if(tailRemaining < -0.15) {
-                        note.tailHit = true;
-                        note.element.remove(); if(note.bodyElement) note.bodyElement.remove();
-                        processResultCount("MISS");
-                    }
-                }
+            // スルーロジック
+            if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
+            else if(note.type === 'long') {
+                if(!note.hit && timeRemaining < -0.15) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
+                else if(note.hit && !note.tailHit && ((note.time + note.duration) - curTime) < -0.15) { note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
             }
         });
 
-        // 終了条件 (音源終了、または全ノーツ通過後に数秒経過)
-        if (currentSong.url && audioHtml && audioHtml.ended) {
-            stopGameAndShowResult(true);
-            return;
-        }
-        if (!currentSong.url && !liveNotesLeft && curTime > 4.0) {
-            stopGameAndShowResult(true);
-            return;
-        }
-
+        if ((audioHtml && audioHtml.ended) || (!audioHtml && !remaining && curTime > 3.0)) { stopGame(true); return; }
         if (gameStarted) requestAnimationFrame(gameUpdate);
     }
 
-    function stopGameAndShowResult(showResultWindow) {
-        gameStarted = false;
-        if(audioHtml) audioHtml.pause();
-        pauseTimeOffset = 0;
-
-        if(showResultWindow) {
+    function stopGame(showResult) {
+        gameStarted = false; if(audioHtml) audioHtml.pause(); pauseTimeOffset = 0;
+        if(showResult) {
             document.getElementById('res-score').textContent = String(score).padStart(6, '0');
             document.getElementById('res-combo').textContent = maxCombo;
-            document.getElementById('res-p').textContent = cntPerfect;
-            document.getElementById('res-g').textContent = cntGreat;
-            document.getElementById('res-gd').textContent = cntGood;
-            document.getElementById('res-m').textContent = cntMiss;
+            document.getElementById('res-p').textContent = cntPerfect; document.getElementById('res-g').textContent = cntGreat;
+            document.getElementById('res-gd').textContent = cntGood; document.getElementById('res-m').textContent = cntMiss;
             resultScreen.style.display = 'flex';
-        } else {
-            startScreen.style.display = 'flex';
-        }
+        } else { selectScreen.style.display = 'flex'; }
     }
 
-    // --- キーボード判定操作 ---
+    // --- キーボード入力判定 ---
     window.addEventListener('keydown', (e) => {
-        const laneIdx = KEYS.indexOf(e.code);
-        if (laneIdx === -1) return;
-        e.preventDefault();
-
-        const curTime = getCurrentTime();
-
+        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
+        e.preventDefault(); const curTime = getCurrentTime();
         if (gameStarted) {
-            // ゲーム中
-            let closestNote = null;
-            let minDiff = Infinity;
-
-            activeNotes.forEach(note => {
-                if(note.lane !== laneIdx) return;
-                if(note.type === 'long' && !note.hit) {
-                    const diff = Math.abs(note.time - curTime);
-                    if(diff < minDiff) { minDiff = diff; closestNote = note; }
-                } else if(note.type !== 'long' && !note.hit) {
-                    const diff = Math.abs(note.time - curTime);
-                    if(diff < minDiff) { minDiff = diff; closestNote = note; }
-                }
+            let target = null; let min = Infinity;
+            activeNotes.forEach(n => {
+                if(n.lane === laneIdx && !n.hit && n.type !== 'long') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
+                if(n.lane === laneIdx && !n.hit && n.type === 'long') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
             });
-
-            if(closestNote && minDiff < 0.20) {
-                closestNote.hit = true;
-                if(closestNote.type !== 'long') closestNote.element.remove();
-                judgeScoreAccuracy(minDiff, closestNote.type === 'flick');
-            }
-        } else if (isPlayingInEditor) {
-            // エディタ流し打ち時もパレット設定を無視して単押しを即時仮プロット可能
-            const roundedTime = Math.round(curTime * 100) / 100;
-            currentSong.chart.push({ lane: laneIdx, time: roundedTime, type: 'normal' });
-            currentSong.chart.sort((a,b)=>a.time-b.time);
+            if(target && min < 0.20) { target.hit = true; if(target.type !== 'long') target.element.remove(); hitJudge(min, target.type==='flick'); }
+        } else if(isPlayingInEditor) {
+            currentSong.chart.push({ lane: laneIdx, time: Math.round(curTime * 100)/100, type: 'normal' });
             initTimeline();
         }
     });
 
     window.addEventListener('keyup', (e) => {
-        const laneIdx = KEYS.indexOf(e.code);
-        if (laneIdx === -1) return;
-
+        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
         if (gameStarted) {
             const curTime = getCurrentTime();
-            activeNotes.forEach(note => {
-                if(note.lane === laneIdx && note.type === 'long' && note.hit && !note.tailHit) {
-                    const diff = Math.abs((note.time + note.duration) - curTime);
-                    note.tailHit = true;
-                    note.element.remove();
-                    if(note.bodyElement) note.bodyElement.remove();
-                    judgeScoreAccuracy(diff, false);
+            activeNotes.forEach(n => {
+                if(n.lane === laneIdx && n.type === 'long' && n.hit && !n.tailHit) {
+                    const d = Math.abs((n.time + n.duration) - curTime); n.tailHit = true;
+                    n.element.remove(); if(n.bodyElement) n.bodyElement.remove(); hitJudge(d, false);
                 }
             });
         }
     });
 
-    function judgeScoreAccuracy(diff, isFlick) {
-        if (diff < 0.05) { processResultCount(isFlick ? "FLICK PERFECT" : "PERFECT"); }
-        else if (diff < 0.12) { processResultCount("GREAT"); }
-        else { processResultCount("GOOD"); }
+    function hitJudge(d, isFlick) {
+        if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT":"PERFECT");
+        else if(d < 0.12) countJudge("GREAT"); else countJudge("GOOD");
     }
 
-    function processResultCount(type) {
-        let col = "#fff";
-        if(type.includes("PERFECT")) { cntPerfect++; score += 1000 + combo*10; combo++; col="#00fff0"; }
-        else if(type === "GREAT") { cntGreat++; score += 700 + combo*5; combo++; col="#ffaa00"; }
-        else if(type === "GOOD") { cntGood++; score += 400; combo++; col="#00ff33"; }
-        else { cntMiss++; combo = 0; col="#ff3333"; }
-        
+    function countJudge(type) {
+        let c = "#fff";
+        if(type.includes("PERFECT")) { cntPerfect++; score += 1000 + combo*10; combo++; c="#00fff0"; }
+        else if(type === "GREAT") { cntGreat++; score += 700 + combo*5; combo++; c="#ffaa00"; }
+        else if(type === "GOOD") { cntGood++; score += 400; combo++; c="#00ff33"; }
+        else { cntMiss++; combo = 0; c="#ff3333"; }
         if(combo > maxCombo) maxCombo = combo;
-        
-        judgeTextEl.textContent = type;
-        judgeTextEl.style.color = col;
-        comboNumberEl.textContent = combo > 0 ? combo : "";
-        updateUI();
+        judgeTextEl.textContent = type; judgeTextEl.style.color = c;
+        comboNumberEl.textContent = combo > 0 ? combo : ""; updateUI();
     }
+    function updateUI() { scoreEl.textContent = String(score).padStart(6, '0'); }
 
-    function updateUI() {
-        scoreEl.textContent = String(score).padStart(6, '0');
-    }
+    // --- 【超重要】HTMLの自動生成・保存（エクスポート機能） ---
+    document.getElementById('export-html-btn').addEventListener('click', () => {
+        // 現在開いているソースコード（自分自身）をテキストとして取得
+        let currentSource = document.documentElement.outerHTML;
+        
+        // ソース内の `let SONGS_DATABASE = [...];` の部分を、今編集・追加した最新のデータ構造で丸ごと置換する
+        const dbString = JSON.stringify(SONGS_DATABASE, null, 4);
+        const regex = /let\s+SONGS_DATABASE\s*=\s*\[[\s\S]*?\];/;
+        
+        let newSource = currentSource.replace(regex, `let SONGS_DATABASE = ${dbString};`);
+        
+        // Blobオブジェクトにしてブラウザからファイルとしてダウンロード
+        const blob = new Blob(["<!DOCTYPE html>\n" + newSource], { type: "text/html;charset=utf-8" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = "my_custom_music_game.html"; // 出力ファイル名
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        alert("現在のすべての楽曲・難易度譜面データを統合した新しいHTMLファイルをダウンロードしました！次回からはそのファイルをそのまま開いて遊べます。");
+    });
 </script>
 </body>
 </html>
