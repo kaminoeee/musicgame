@@ -30,7 +30,7 @@
         .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: bold; color: #444466; opacity: 0; }
         .lane-key-hint.show { opacity: 1; }
 
-        /* 強化されたネオン判定線 */
+        /* プロセカ風の判定枠エリア & ネオン判定線 */
         #judge-line {
             position: absolute; bottom: 80px; left: 0; width: 100%; height: 8px;
             background: linear-gradient(90deg, #00fff0, #3aa89b, #00fff0); 
@@ -38,6 +38,15 @@
             pointer-events: none;
             z-index: 5;
         }
+        /* 各レーンのプロセカ風判定ターゲット枠 */
+        .judge-slot {
+            position: absolute; bottom: 75px; width: 16%; height: 18px;
+            border: 2px solid rgba(0, 255, 240, 0.6); background: rgba(0, 255, 240, 0.15);
+            border-radius: 4px; box-sizing: border-box; pointer-events: none; z-index: 4;
+            box-shadow: inset 0 0 6px rgba(0, 255, 240, 0.5);
+        }
+        #slot-0 { left: 2%; } #slot-1 { left: 22%; } #slot-2 { left: 42%; } #slot-3 { left: 62%; } #slot-4 { left: 82%; }
+
         /* ノーツ */
         .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; pointer-events: none;}
         .note-normal { background: linear-gradient(90deg, #00fff0, #00aa99); box-shadow: 0 0 8px #00fff0; }
@@ -139,6 +148,12 @@
                 <div class="lane" id="lane-4"><span class="lane-key-hint">L</span></div>
             </div>
             
+            <div class="judge-slot" id="slot-0"></div>
+            <div class="judge-slot" id="slot-1"></div>
+            <div class="judge-slot" id="slot-2"></div>
+            <div class="judge-slot" id="slot-3"></div>
+            <div class="judge-slot" id="slot-4"></div>
+
             <div id="judge-line"></div>
             <div id="notes-layer"></div>
             <div id="combo-container">
@@ -221,9 +236,10 @@
                 </select>
             </div>
             <div class="flex-row" style="margin-top:4px;">
-                <input type="text" id="new-song-title" placeholder="追加する新曲名" style="flex:2;">
+                <input type="text" id="new-song-title" placeholder="追加する新曲名" style="flex:1.5;">
                 <button id="add-new-song-btn" style="font-size:11px; padding:4px 6px;">追加</button>
-                <button id="delete-song-btn" class="btn-danger" style="font-size:11px; padding:4px 6px;">🗑️ 削除</button>
+                <button id="delete-diff-btn" style="font-size:11px; padding:4px 6px; background:#885522; color:#fff;">難易度削除</button>
+                <button id="delete-song-btn" class="btn-danger" style="font-size:11px; padding:4px 6px;">🗑️ 全削除</button>
             </div>
             <div class="flex-row" style="margin-top:4px; gap:10px;">
                 <div style="flex:1;">
@@ -441,10 +457,22 @@
         refreshSongDropdowns(); renderSelectionMenu(); initTimeline();
     });
 
+    // 難易度（ないインド）データだけを消去する新機能
+    document.getElementById('delete-diff-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        const currentTitle = SONGS_DATABASE[editingSongIdx].title;
+        if(confirm(`楽曲「${currentTitle}」の【${editingDiff.toUpperCase()}】譜面データのみを削除しますか？`)) {
+            SONGS_DATABASE[editingSongIdx].charts[editingDiff] = [];
+            initTimeline();
+            renderSelectionMenu();
+            alert(`${editingDiff.toUpperCase()} 譜面を削除しました。`);
+        }
+    });
+
     document.getElementById('delete-song-btn').addEventListener('click', () => {
         if(SONGS_DATABASE.length === 0) return;
         const currentTitle = SONGS_DATABASE[editingSongIdx].title;
-        if(confirm(`楽曲「${currentTitle}」を完全に削除しますか？`)) {
+        if(confirm(`楽曲「${currentTitle}」を完全に丸ごと削除しますか？`)) {
             if(audioHtml) { audioHtml.pause(); }
             isPlayingInEditor = false;
             SONGS_DATABASE.splice(editingSongIdx, 1);
@@ -723,7 +751,6 @@
         const curTime = getCurrentTime();
         let remaining = false;
         
-        // 変更された速度倍率を適用
         const currentScrollSpeed = baseScrollSpeed * userSpeedMultiplier;
 
         activeNotes.forEach(note => {
@@ -738,11 +765,11 @@
                 note.bodyElement.style.top = tailY + 'px'; note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
             }
 
-            // 【判定ロジック修正】ハイスピ値に左右されないよう絶対時間（秒数差）で一貫してMISS判定を実行
-            if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
+            // タイトになったMISS判定境界（GOODの限界時間 -0.12秒を越えたら即MISS）
+            if (note.type !== 'long' && timeRemaining < -0.12 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
             else if(note.type === 'long') {
-                if(!note.hit && timeRemaining < -0.15) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
-                else if(note.hit && !note.tailHit && ((note.time + note.duration) - curTime) < -0.15) { note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
+                if(!note.hit && timeRemaining < -0.12) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
+                else if(note.hit && !note.tailHit && ((note.time + note.duration) - curTime) < -0.12) { note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
             }
         });
 
@@ -833,8 +860,8 @@
                     if(d < min) { min = d; target = n; } 
                 }
             });
-            // 判定枠は不変（ハイスピの速度変化に関わらず一貫して秒数基準）
-            if(target && min < 0.20) { 
+            // 判定をシビアにしたため、タップ受付時間を 0.20s -> 0.12s（GOODの限界値）に絞り込み
+            if(target && min < 0.12) { 
                 target.hit = true; 
                 if(target.type !== 'long') target.element.remove(); 
                 hitJudge(min, false); 
@@ -848,7 +875,7 @@
                     if(d < min) { min = d; target = n; }
                 }
             });
-            if(target && min < 0.20) {
+            if(target && min < 0.12) {
                 target.hit = true;
                 target.element.remove();
                 hitJudge(min, true);
@@ -875,7 +902,7 @@
             let hasFlickFront = false;
             const curTime = getCurrentTime();
             activeNotes.forEach(n => {
-                if(n.lane === laneIdx && !n.hit && n.type === 'flick' && Math.abs(n.time - curTime) < 0.20) {
+                if(n.lane === laneIdx && !n.hit && n.type === 'flick' && Math.abs(n.time - curTime) < 0.12) {
                     hasFlickFront = true;
                 }
             });
@@ -896,9 +923,12 @@
         executeInputTrigger(laneIdx, "up");
     });
 
+    // 【超本格派・シビア判定に変更】
     function hitJudge(d, isFlick) {
-        if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT" : "PERFECT");
-        else if(d < 0.12) countJudge("GREAT"); else countJudge("GOOD");
+        if(d < 0.03) countJudge(isFlick ? "FLICK PERFECT" : "PERFECT"); // 0.05 -> 0.03秒
+        else if(d < 0.07) countJudge("GREAT");                       // 0.12 -> 0.07秒
+        else if(d < 0.12) countJudge("GOOD");                        // 0.20 -> 0.12秒
+        else countJudge("MISS");
     }
     
     function countJudge(type) {
