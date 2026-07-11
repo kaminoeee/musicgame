@@ -106,12 +106,17 @@
         button { background: #3aa89b; color: white; border: none; padding: 8px 16px; font-size: 13px; border-radius: 15px; cursor: pointer; transition: 0.2s; }
         button:hover { background: #00fff0; color: #101020; }
         .btn-pink { background: #ff007f; }
+        .btn-danger { background: #441111; color: #ff5555; border: 1px solid #772222; }
+        .btn-danger:hover { background: #ff3333; color: #fff; }
         
         .flex-row { display: flex; gap: 8px; align-items: center; }
         
         /* エディタ側の現在再生位置を示す赤いメイン判定線 */
         #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: #ff1133; box-shadow: 0 0 8px #ff1133; z-index: 10; pointer-events: none; }
         input, select, textarea { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 5px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
+        
+        /* クレジット表示用スタイル */
+        .credit-text { font-size: 10px; color: #444466; margin-top: 15px; text-align: center; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -144,6 +149,7 @@
                 <p style="color: #666; font-size: 11px; margin-bottom: 25px;">判定線・リズムグリッド表示強化</p>
                 <button id="mode-single-btn" style="width: 200px; font-size: 14px; margin-bottom: 10px;">シングルプレイ</button>
                 <button id="mode-multi-btn" style="width: 200px; font-size: 13px; background: #222; color: #555; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
+                <div class="credit-text" style="color: #555577; margin-top: 40px;">DEVELOPED BY POLYPHONIC STUDIO<br>&copy; 2026 ALL RIGHTS RESERVED.</div>
             </div>
 
             <div id="select-screen" class="overlay-screen" style="display: none;">
@@ -190,7 +196,7 @@
         </div>
         
         <div class="panel-section">
-            <div class="section-title">🎵 1. 曲編集・追加</div>
+            <div class="section-title">🎵 1. 曲編集・追加・削除</div>
             <div class="flex-row">
                 <select id="edit-song-index" style="flex:2;"></select>
                 <select id="edit-diff-zone" style="flex:1;">
@@ -202,6 +208,7 @@
             <div class="flex-row" style="margin-top:4px;">
                 <input type="text" id="new-song-title" placeholder="追加する新曲名" style="flex:2;">
                 <button id="add-new-song-btn" style="font-size:11px; padding:4px 6px;">追加</button>
+                <button id="delete-song-btn" class="btn-danger" style="font-size:11px; padding:4px 6px;">🗑️ 削除</button>
             </div>
             <label style="font-size:10px; color:#aaa; margin-top:3px;">音源URL (.mp3)</label>
             <input type="text" id="edit-song-url">
@@ -235,6 +242,8 @@
             <div class="section-title" style="color:#00bfff;">📋 4. 設定コード書き出し（置換用データ型）</div>
             <textarea id="export-code-output" style="height:55px; font-size:9px; font-family:monospace;" readonly></textarea>
         </div>
+        
+        <div class="credit-text">POWERED BY POLYPHONIC RHYTHM ENGINE v1.2.0</div>
     </div>
 </div>
 
@@ -274,6 +283,8 @@
 
     // フリック判定のトラッキング用の状態変数
     let touchStartPositions = {};
+    // クリックとダブルクリックの干渉を防ぐタイマー
+    let timelineClickTimer = null;
 
     const titleScreen = document.getElementById('title-screen');
     const selectScreen = document.getElementById('select-screen');
@@ -320,9 +331,16 @@
 
     function refreshSongDropdowns() {
         const select = document.getElementById('edit-song-index'); select.innerHTML = '';
+        if(SONGS_DATABASE.length === 0) {
+            editingSongIdx = 0;
+            document.getElementById('edit-song-url').value = "";
+            updateCodeOutput();
+            return;
+        }
         SONGS_DATABASE.forEach((s, idx) => {
             const opt = document.createElement('option'); opt.value = idx; opt.textContent = s.title; select.appendChild(opt);
         });
+        if(editingSongIdx >= SONGS_DATABASE.length) editingSongIdx = SONGS_DATABASE.length - 1;
         select.value = editingSongIdx;
         document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
         updateCodeOutput();
@@ -354,8 +372,10 @@
     });
     document.getElementById('edit-diff-zone').addEventListener('change', (e) => { editingDiff = e.target.value; initTimeline(); });
     document.getElementById('edit-song-url').addEventListener('input', (e) => { 
-        SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); 
-        updateCodeOutput(); 
+        if(SONGS_DATABASE[editingSongIdx]) {
+            SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); 
+            updateCodeOutput(); 
+        }
     });
 
     document.getElementById('add-new-song-btn').addEventListener('click', () => {
@@ -363,6 +383,28 @@
         SONGS_DATABASE.push({ title: title, url: "", charts: { easy: [], normal: [], hard: [] } });
         editingSongIdx = SONGS_DATABASE.length - 1; document.getElementById('new-song-title').value = '';
         refreshSongDropdowns(); renderSelectionMenu(); initTimeline();
+    });
+
+    document.getElementById('delete-song-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
+        const currentTitle = SONGS_DATABASE[editingSongIdx].title;
+        if(confirm(`楽曲「${currentTitle}」を完全に削除しますか？`)) {
+            if(audioHtml) { audioHtml.pause(); }
+            isPlayingInEditor = false;
+            SONGS_DATABASE.splice(editingSongIdx, 1);
+            if(editingSongIdx >= SONGS_DATABASE.length && editingSongIdx > 0) {
+                editingSongIdx--;
+            }
+            if(selectedSongIdx >= SONGS_DATABASE.length && selectedSongIdx > 0) {
+                selectedSongIdx--;
+            }
+            refreshSongDropdowns();
+            renderSelectionMenu();
+            initTimeline();
+            pauseTimeOffset = 0;
+            playCursor.style.bottom = '0px';
+            timeDisp.textContent = "0.00s";
+        }
     });
 
     function setupPalette() {
@@ -378,17 +420,14 @@
         exportOutput.value = "let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";";
     }
 
-    // --- タイムライン構築（判定グリッド線の自動生成システム追加） ---
     function initTimeline() {
-        // play-cursor以外の要素（古い線やノーツ）をリセット
         timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
+        if(SONGS_DATABASE.length === 0) return;
         
-        // 1. リズム判定グリッド背景線の生成 (30秒分生成)
         const totalDuration = 30; 
-        // 0.25秒刻み（16分相当の細かい判定線）
         for (let t = 0; t <= totalDuration; t += 0.25) {
             const line = document.createElement('div');
-            const isMajor = t % 1.0 === 0; // 1秒ごと（拍の区切り）を太い判定線にする
+            const isMajor = t % 1.0 === 0; 
             line.className = `timeline-line ${isMajor ? 'major' : ''}`;
             line.style.bottom = (t * pixelsPerSecond) + 'px';
             if (isMajor) {
@@ -399,7 +438,6 @@
 
         const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
         
-        // 2. ロング判定の結線処理
         for(let l=0; l<5; l++) {
             const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
             for(let i=0; i<laneNotes.length; i++) {
@@ -415,7 +453,6 @@
             }
         }
 
-        // 3. 配置されたノーツの描画
         chart.forEach((note, index) => {
             const noteEl = document.createElement('div'); noteEl.className = `timeline-note tl-${note.type}`;
             noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px'; noteEl.style.left = (10 + note.lane * 18) + '%';
@@ -427,27 +464,35 @@
     }
 
     timelineGrid.addEventListener('click', (e) => {
-        if(gameStarted || isPlayingInEditor) return;
-        const rect = timelineGrid.getBoundingClientRect();
-        // 判定補助線に吸い付くように（0.05秒単位にスナップ配置させると作りやすい）
-        let clickTime = ((rect.bottom - e.clientY) / pixelsPerSecond);
-        clickTime = Math.round(clickTime * 4) / 4; // 0.25秒刻みのグリッド線に自動スナップ
+        if(gameStarted || isPlayingInEditor || SONGS_DATABASE.length === 0) return;
         
-        const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
-        if(clickLane >=0 && clickLane < 5 && clickTime >= 0) {
-            const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
-            SONGS_DATABASE[editingSongIdx].charts[editingDiff] = chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.08));
-            SONGS_DATABASE[editingSongIdx].charts[editingDiff].push({ lane: clickLane, time: clickTime, type: selectedNodeType });
-            SONGS_DATABASE[editingSongIdx].charts[editingDiff].sort((a,b)=>a.time - b.time);
-            initTimeline();
-        }
+        clearTimeout(timelineClickTimer);
+        
+        timelineClickTimer = setTimeout(() => {
+            const rect = timelineGrid.getBoundingClientRect();
+            let clickTime = ((rect.bottom - e.clientY) / pixelsPerSecond);
+            clickTime = Math.round(clickTime * 4) / 4; 
+            
+            const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
+            if(clickLane >= 0 && clickLane < 5 && clickTime >= 0) {
+                const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff] = chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.08));
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff].push({ lane: clickLane, time: clickTime, type: selectedNodeType });
+                SONGS_DATABASE[editingSongIdx].charts[editingDiff].sort((a,b)=>a.time - b.time);
+                initTimeline();
+            }
+        }, 200); 
     });
 
     timelineGrid.addEventListener('dblclick', (e) => {
+        if(SONGS_DATABASE.length === 0) return;
+        clearTimeout(timelineClickTimer);
+        
         const rect = timelineGrid.getBoundingClientRect();
         pauseTimeOffset = Math.max(0, Math.round(((rect.bottom - e.clientY) / pixelsPerSecond) * 100) / 100);
         timeDisp.textContent = pauseTimeOffset.toFixed(2) + "s";
         playCursor.style.bottom = (pauseTimeOffset * pixelsPerSecond) + 'px';
+        
         if(isPlayingInEditor) {
             startTime = performance.now() - (pauseTimeOffset * 1000);
             if(audioHtml) { audioHtml.currentTime = pauseTimeOffset; audioHtml.play().catch(()=>{}); }
@@ -455,6 +500,7 @@
     });
 
     document.getElementById('edit-play-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
         if(!isPlayingInEditor) {
             isPlayingInEditor = true; startTime = performance.now() - (pauseTimeOffset * 1000);
             lastEditorPlaybackTime = pauseTimeOffset;
@@ -470,7 +516,7 @@
     });
 
     function updateEditorTimeline() {
-        if(!isPlayingInEditor) return;
+        if(!isPlayingInEditor || SONGS_DATABASE.length === 0) return;
         const curTime = getCurrentTime();
         timeDisp.textContent = curTime.toFixed(2) + "s";
         const y = curTime * pixelsPerSecond;
@@ -489,6 +535,7 @@
     }
 
     document.getElementById('clear-chart-btn').addEventListener('click', () => {
+        if(SONGS_DATABASE.length === 0) return;
         if(confirm("この譜面を全消去しますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
     });
 
@@ -497,6 +544,7 @@
     document.getElementById('res-to-menu-btn').addEventListener('click', () => { resultScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
 
     function initGamePlay() {
+        if(SONGS_DATABASE.length === 0) { alert("楽曲がありません。"); return; }
         score = 0; combo = 0; maxCombo = 0; cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
         updateUI(); notesLayer.innerHTML = ''; activeNotes = [];
         judgeTextEl.textContent = ''; comboNumberEl.textContent = '';
@@ -519,6 +567,7 @@
     document.getElementById('retry-btn').addEventListener('click', initGamePlay);
 
     function getCurrentTime() {
+        if(SONGS_DATABASE.length === 0) return 0;
         if((gameStarted || isPlayingInEditor) && SONGS_DATABASE[gameStarted?selectedSongIdx:editingSongIdx].url && audioHtml) return audioHtml.currentTime;
         return (performance.now() - startTime) / 1000;
     }
@@ -589,7 +638,6 @@
         for (let l = 0; l < 5; l++) {
             const laneEl = document.getElementById(`lane-${l}`);
             
-            // タッチ / マウスが押された位置を記録
             const handleDown = (e) => {
                 if (!gameStarted) return;
                 e.preventDefault(); laneEl.classList.add('touch-active');
@@ -601,7 +649,6 @@
                 executeInputTrigger(l, "down");
             };
             
-            // 指やマウスが動いた時の処理（フリックの厳密な判定用）
             const handleMove = (e) => {
                 if (!gameStarted || !touchStartPositions[l] || touchStartPositions[l].processed) return;
                 
@@ -612,7 +659,6 @@
                 const deltaY = clientY - touchStartPositions[l].y;
                 const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                 
-                // 25ピクセル以上指が動いたら「フリック」とみなす
                 if (moveDistance > 25) {
                     touchStartPositions[l].processed = true;
                     executeInputTrigger(l, "flick");
@@ -632,7 +678,6 @@
             
             laneEl.addEventListener('mousedown', handleDown);
             window.addEventListener('mousemove', (e) => {
-                // レーンを跨いでもフリックが反応するようにwindow追従
                 if(laneEl.classList.contains('touch-active')) handleMove(e);
             });
             laneEl.addEventListener('mouseup', handleUp);
@@ -646,7 +691,6 @@
             playSynthTone(400 + laneIdx * 60);
             let target = null; let min = Infinity;
             activeNotes.forEach(n => {
-                // 単押し、またはロング始点のみをdownで判定（フリックはここでは除外）
                 if(n.lane === laneIdx && !n.hit && n.type !== 'flick') { 
                     const d = Math.abs(n.time - curTime); 
                     if(d < min) { min = d; target = n; } 
@@ -661,7 +705,6 @@
         else if(type === "flick") {
             let target = null; let min = Infinity;
             activeNotes.forEach(n => {
-                // フリックノーツのみを狙い撃ち判定
                 if(n.lane === laneIdx && !n.hit && n.type === 'flick') {
                     const d = Math.abs(n.time - curTime);
                     if(d < min) { min = d; target = n; }
@@ -691,7 +734,6 @@
         if(targetLane && !targetLane.classList.contains('touch-active')) {
             targetLane.classList.add('touch-active');
             
-            // キーボード操作時は、フリックノーツがそのレーンの最前面にあれば自動でフリック、無ければ単押しとしてトリガー
             let hasFlickFront = false;
             const curTime = getCurrentTime();
             activeNotes.forEach(n => {
