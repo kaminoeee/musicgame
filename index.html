@@ -21,7 +21,6 @@
         }
         #lanes-container { display: flex; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
         
-        /* タッチ・タップを確実に検知するためのレーン設定 */
         .lane {
             flex: 1; height: 100%; border-right: 1px dashed rgba(255, 255, 255, 0.08); position: relative;
             background: rgba(255, 255, 255, 0.005); touch-action: none;
@@ -31,9 +30,11 @@
         .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: bold; color: #444466; opacity: 0; }
         .lane-key-hint.show { opacity: 1; }
 
+        /* ゲーム画面側の判定線 */
         #judge-line {
             position: absolute; bottom: 80px; left: 0; width: 100%; height: 6px;
             background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b); box-shadow: 0 0 15px #00fff0; pointer-events: none;
+            z-index: 5;
         }
         /* ノーツ */
         .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; pointer-events: none;}
@@ -68,10 +69,9 @@
         /* 設定子画面 */
         #config-overlay { display: none; z-index: 30; background: rgba(5,5,10,0.95); }
 
-        /* 右側：エディタ（?_adminがない場合は完全に非表示化される） */
+        /* 右側：エディタ（?_adminがない場合は非表示） */
         #editor-panel {
-            display: none; /* 初期は非表示 */
-            width: 480px; background-color: #141424; border: 2px solid #ff007f;
+            display: none; width: 480px; background-color: #141424; border: 2px solid #ff007f;
             border-radius: 12px; padding: 15px; box-sizing: border-box;
             flex-direction: column; box-shadow: 0 0 20px rgba(255, 0, 127, 0.15);
         }
@@ -87,22 +87,30 @@
 
         /* タイムライン */
         #timeline-container { flex: 1; background: #080810; border: 1px solid #333; border-radius: 6px; position: relative; overflow-y: scroll; min-height: 150px; }
-        #timeline-grid { position: relative; width: 100%; height: 3000px; }
-        .timeline-line { position: absolute; left: 0; width: 100%; border-bottom: 1px solid #1a1a26; color: #444; font-size: 9px; padding-left: 4px; box-sizing: border-box; pointer-events: none; }
-        .timeline-note { position: absolute; height: 14px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; color: #000; width: 15%; }
+        #timeline-grid { position: relative; width: 100%; height: 3600px; background: #080812; }
+        
+        /* タイムラインに動的生成される判定グリッド線 */
+        .timeline-line {
+            position: absolute; left: 0; width: 100%; border-bottom: 1px solid #1f1f35; color: #444666;
+            font-size: 9px; padding-left: 4px; box-sizing: border-box; pointer-events: none;
+        }
+        .timeline-line.major { border-bottom: 1px dashed #444477; color: #6666bb; font-weight: bold; }
+
+        .timeline-note { position: absolute; height: 14px; border-radius: 3px; cursor: pointer; text-align: center; font-size: 9px; line-height: 14px; font-weight: bold; color: #000; width: 15%; z-index: 6; }
         .tl-normal { background: #00fff0; }
         .tl-flick { background: #ff007f; }
         .tl-long-start { background: #00ff66; }
         .tl-long-end { background: #aaff00; }
-        .tl-body-line { position: absolute; width: 4px; background: rgba(0, 255, 102, 0.4); pointer-events: none; transform: translateX(6px); }
+        .tl-body-line { position: absolute; width: 4px; background: rgba(0, 255, 102, 0.4); pointer-events: none; transform: translateX(6px); z-index: 5; }
 
         button { background: #3aa89b; color: white; border: none; padding: 8px 16px; font-size: 13px; border-radius: 15px; cursor: pointer; transition: 0.2s; }
         button:hover { background: #00fff0; color: #101020; }
         .btn-pink { background: #ff007f; }
-        .btn-blue { background: #00bfff; }
         
         .flex-row { display: flex; gap: 8px; align-items: center; }
-        #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: red; box-shadow: 0 0 6px red; z-index: 5; pointer-events: none; }
+        
+        /* エディタ側の現在再生位置を示す赤いメイン判定線 */
+        #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: #ff1133; box-shadow: 0 0 8px #ff1133; z-index: 10; pointer-events: none; }
         input, select, textarea { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 5px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
     </style>
 </head>
@@ -133,7 +141,7 @@
 
             <div id="title-screen" class="overlay-screen">
                 <h1 style="color: #00fff0; margin: 0 0 5px 0; font-size: 26px;">POLYPHONIC 5KEY</h1>
-                <p style="color: #666; font-size: 11px; margin-bottom: 25px;">基本タッチ専用仕様 / エディタ保護機能付</p>
+                <p style="color: #666; font-size: 11px; margin-bottom: 25px;">判定線・リズムグリッド表示強化</p>
                 <button id="mode-single-btn" style="width: 200px; font-size: 14px; margin-bottom: 10px;">シングルプレイ</button>
                 <button id="mode-multi-btn" style="width: 200px; font-size: 13px; background: #222; color: #555; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
             </div>
@@ -169,11 +177,10 @@
                     <label style="font-weight:bold; color:#fff; font-size:14px;">
                         <input type="checkbox" id="config-use-keyboard" style="width:auto; margin-right:8px;"> 非推奨キーボード操作を有効化
                     </label>
-                    <p style="color:#888; font-size:11px; margin:5px 0 0 22px;">※チェックを外すと完全タッチ専用になります（推奨）。有効化時のキー：A, S, Space, K, L</p>
+                    <p style="color:#888; font-size:11px; margin:5px 0 0 22px;">有効化時のキー：A, S, Space, K, L</p>
                 </div>
                 <button id="config-close-btn" class="btn-pink" style="margin-top:20px; width:120px;">閉じる</button>
             </div>
-
         </div>
     </div>
 
@@ -211,14 +218,16 @@
         </div>
 
         <div class="panel-section" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-            <div class="section-title">⏱ 3. タイムライン (再生中も音が流れます)</div>
+            <div class="section-title">⏱ 3. タイムライン判定線＆グリッド</div>
             <div class="flex-row" style="margin-bottom: 4px;">
                 <button id="edit-play-btn" style="font-size:11px; padding:3px 8px;">⏯ 再生/一時停止</button>
                 <span id="editor-time-disp" style="font-family:monospace; font-size:12px; color:#00fff0;">0.00s</span>
                 <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:3px 6px; margin-left:auto;">クリア</button>
             </div>
             <div id="timeline-container">
-                <div id="timeline-grid"><div id="play-cursor"></div></div>
+                <div id="timeline-grid">
+                    <div id="play-cursor"></div>
+                </div>
             </div>
         </div>
 
@@ -247,8 +256,7 @@
         }
     ];
 
-    // システム状態設定
-    let controlMode = "touch"; // "touch" or "keyboard"
+    let controlMode = "touch";
     let selectedSongIdx = 0; let selectedDiff = "normal";
     let editingSongIdx = 0; let editingDiff = "normal";
     let selectedNodeType = "normal";
@@ -256,7 +264,6 @@
     const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
     const scrollSpeed = 360; const targetY = 570; const pixelsPerSecond = 120;
 
-    // フラグ・コア変数
     let gameStarted = false; let isPlayingInEditor = false;
     let audioCtx = null; let audioHtml = null;
     let startTime = 0; let pauseTimeOffset = 0;
@@ -265,7 +272,6 @@
     let activeNotes = [];
     let lastEditorPlaybackTime = 0;
 
-    // DOMキャッシュ
     const titleScreen = document.getElementById('title-screen');
     const selectScreen = document.getElementById('select-screen');
     const resultScreen = document.getElementById('result-screen');
@@ -281,7 +287,7 @@
     const exportOutput = document.getElementById('export-code-output');
 
     window.addEventListener('DOMContentLoaded', () => {
-        checkAdminAccess(); // 管理者認証チェック
+        checkAdminAccess();
         refreshSongDropdowns();
         renderSelectionMenu();
         initTimeline();
@@ -289,7 +295,6 @@
         setupPalette();
     });
 
-    // 【重要機能】 ?_admin パラメータがついている時だけエディタを開放
     function checkAdminAccess() {
         const params = new URLSearchParams(window.location.search);
         if (params.has('_admin')) {
@@ -299,12 +304,10 @@
         }
     }
 
-    // --- 設定UIロジック ---
     document.getElementById('config-trigger').addEventListener('click', () => configOverlay.style.display = 'flex');
     document.getElementById('config-close-btn').addEventListener('click', () => {
         const kbCheck = document.getElementById('config-use-keyboard').checked;
         controlMode = kbCheck ? "keyboard" : "touch";
-        // ヒントの表示制御
         document.querySelectorAll('.lane-key-hint').forEach(el => {
             if(controlMode === 'keyboard') el.classList.add('show');
             else el.classList.remove('show');
@@ -312,7 +315,6 @@
         configOverlay.style.display = 'none';
     });
 
-    // --- エディタ関連内部同期 ---
     function refreshSongDropdowns() {
         const select = document.getElementById('edit-song-index'); select.innerHTML = '';
         SONGS_DATABASE.forEach((s, idx) => {
@@ -370,11 +372,28 @@
         exportOutput.value = "let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";";
     }
 
-    // --- タイムライン（Wクリックワープ対応） ---
+    // --- タイムライン構築（判定グリッド線の自動生成システム追加） ---
     function initTimeline() {
+        // play-cursor以外の要素（古い線やノーツ）をリセット
         timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
+        
+        // 1. リズム判定グリッド背景線の生成 (30秒分生成)
+        const totalDuration = 30; 
+        // 0.25秒刻み（16分相当の細かい判定線）
+        for (let t = 0; t <= totalDuration; t += 0.25) {
+            const line = document.createElement('div');
+            const isMajor = t % 1.0 === 0; // 1秒ごと（拍の区切り）を太い判定線にする
+            line.className = `timeline-line ${isMajor ? 'major' : ''}`;
+            line.style.bottom = (t * pixelsPerSecond) + 'px';
+            if (isMajor) {
+                line.textContent = t.toFixed(0) + "s";
+            }
+            timelineGrid.appendChild(line);
+        }
+
         const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
         
+        // 2. ロング判定の結線処理
         for(let l=0; l<5; l++) {
             const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
             for(let i=0; i<laneNotes.length; i++) {
@@ -390,6 +409,7 @@
             }
         }
 
+        // 3. 配置されたノーツの描画
         chart.forEach((note, index) => {
             const noteEl = document.createElement('div'); noteEl.className = `timeline-note tl-${note.type}`;
             noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px'; noteEl.style.left = (10 + note.lane * 18) + '%';
@@ -403,7 +423,10 @@
     timelineGrid.addEventListener('click', (e) => {
         if(gameStarted || isPlayingInEditor) return;
         const rect = timelineGrid.getBoundingClientRect();
-        const clickTime = Math.round(((rect.bottom - e.clientY) / pixelsPerSecond) * 100) / 100;
+        // 判定補助線に吸い付くように（0.05秒単位にスナップ配置させると作りやすい）
+        let clickTime = ((rect.bottom - e.clientY) / pixelsPerSecond);
+        clickTime = Math.round(clickTime * 4) / 4; // 0.25秒刻みのグリッド線に自動スナップ
+        
         const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
         if(clickLane >=0 && clickLane < 5 && clickTime >= 0) {
             const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
@@ -425,7 +448,6 @@
         }
     });
 
-    // 【重要機能】エディタ再生中も完全に音が流れるように処理
     document.getElementById('edit-play-btn').addEventListener('click', () => {
         if(!isPlayingInEditor) {
             isPlayingInEditor = true; startTime = performance.now() - (pauseTimeOffset * 1000);
@@ -449,7 +471,6 @@
         playCursor.style.bottom = y + 'px';
         if(y > 100) timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
 
-        // 内蔵音源時：エディタ再生中にノーツの線を通過したら音を鳴らすシステム
         if(!SONGS_DATABASE[editingSongIdx].url) {
             if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
@@ -465,12 +486,10 @@
         if(confirm("この譜面を全消去しますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
     });
 
-    // --- 画面遷移ナビゲーション ---
     document.getElementById('mode-single-btn').addEventListener('click', () => { titleScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
     document.getElementById('select-back-btn').addEventListener('click', () => { selectScreen.style.display = 'none'; titleScreen.style.display = 'flex'; });
     document.getElementById('res-to-menu-btn').addEventListener('click', () => { resultScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
 
-    // --- ゲーム本体プレイ・システム ---
     function initGamePlay() {
         score = 0; combo = 0; maxCombo = 0; cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
         updateUI(); notesLayer.innerHTML = ''; activeNotes = [];
@@ -560,31 +579,19 @@
         } else { selectScreen.style.display = 'flex'; }
     }
 
-    // --- 【超重要】完全タッチ専用インプット判定ロジック ---
     function setupTouchControls() {
         for (let l = 0; l < 5; l++) {
             const laneEl = document.getElementById(`lane-${l}`);
-            
-            // タッチ開始 / マウスダウン（マルチタッチ対応）
             const handleDown = (e) => {
                 if (!gameStarted) return;
-                e.preventDefault();
-                laneEl.classList.add('touch-active');
-                executeInputTrigger(l, "down");
+                e.preventDefault(); laneEl.classList.add('touch-active'); executeInputTrigger(l, "down");
             };
-
-            // タッチ終了 / マウスアップ
             const handleUp = (e) => {
                 if (!gameStarted) return;
-                e.preventDefault();
-                laneEl.classList.remove('touch-active');
-                executeInputTrigger(l, "up");
+                e.preventDefault(); laneEl.classList.remove('touch-active'); executeInputTrigger(l, "up");
             };
-
             laneEl.addEventListener('touchstart', handleDown, { passive: false });
             laneEl.addEventListener('touchend', handleUp, { passive: false });
-            
-            // PCブラウザテスト用（タッチモード時も動作）
             laneEl.addEventListener('mousedown', handleDown);
             laneEl.addEventListener('mouseup', handleUp);
         }
@@ -600,7 +607,6 @@
             });
             if(target && min < 0.20) { target.hit = true; if(target.type !== 'long') target.element.remove(); hitJudge(min, target.type==='flick'); }
         } else {
-            // キーアップ（ロング終点）
             activeNotes.forEach(n => {
                 if(n.lane === laneIdx && n.type === 'long' && n.hit && !n.tailHit) {
                     const d = Math.abs((n.time + n.duration) - curTime); n.tailHit = true;
@@ -610,7 +616,6 @@
         }
     }
 
-    // --- 【非推奨】隠し設定：キーボード用バックアップインプット ---
     window.addEventListener('keydown', (e) => {
         if(controlMode !== "keyboard") return;
         const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
@@ -628,7 +633,6 @@
         executeInputTrigger(laneIdx, "up");
     });
 
-    // 共通システムスコア処理
     function hitJudge(d, isFlick) {
         if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT":"PERFECT");
         else if(d < 0.12) countJudge("GREAT"); else countJudge("GOOD");
