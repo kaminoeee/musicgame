@@ -167,9 +167,15 @@
             </div>
 
             <div id="select-screen" class="overlay-screen" style="display: none;">
-                <h4 style="color: #ff007f; margin: 0 0 12px 0;">SELECT MUSIC</h4>
-                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:300px; overflow-y:auto;" id="song-list-container"></div>
-                <div class="flex-row" style="margin-top: 20px; width: 85%;">
+                <h4 style="color: #ff007f; margin: 0 0 6px 0;">SELECT MUSIC</h4>
+                
+                <div style="width: 85%; background: rgba(255,255,255,0.06); padding: 6px; border-radius: 6px; margin-bottom: 8px; display: flex; gap: 4px; box-sizing: border-box;">
+                    <button id="menu-file-save-btn" class="btn-green" style="font-size: 9px; padding: 4px 6px; flex: 1; border-radius: 4px;">📤 譜面保存(.json)</button>
+                    <button id="menu-file-load-btn" class="btn-orange" style="font-size: 9px; padding: 4px 6px; flex: 1; border-radius: 4px;">📥 ファイル読込</button>
+                </div>
+                
+                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:240px; overflow-y:auto;" id="song-list-container"></div>
+                <div class="flex-row" style="margin-top: 15px; width: 85%;">
                     <button id="select-back-btn" style="background:#555;">戻る</button>
                     <button id="start-game-btn" class="btn-pink" style="flex:1; font-weight:bold;">GAME START</button>
                 </div>
@@ -213,6 +219,8 @@
             </div>
         </div>
     </div>
+
+    <input type="file" id="shared-file-load-input" accept=".json" style="display:none;">
 
     <div id="editor-panel">
         <div style="font-size: 13px; font-weight: bold; color: #ff007f; margin-bottom: 6px; border-bottom: 1px solid #ff007f; padding-bottom:2px; display:flex; justify-content:space-between; align-items:center;">
@@ -303,7 +311,6 @@
             <div class="flex-row">
                 <button id="file-save-btn" class="btn-green" style="flex:1; font-weight:bold;">📤 譜面ファイルを保存 (.json)</button>
                 <button id="file-load-trigger" class="btn-orange" style="flex:1; font-weight:bold;">📥 ファイルから読み込み</button>
-                <input type="file" id="file-load-input" accept=".json" style="display:none;">
             </div>
         </div>
 
@@ -370,6 +377,7 @@
     const playCursor = document.getElementById('play-cursor');
     const timeDisp = document.getElementById('editor-time-disp');
     const exportOutput = document.getElementById('export-code-output');
+    const sharedFileInput = document.getElementById('shared-file-load-input');
 
     window.addEventListener('DOMContentLoaded', () => {
         refreshSongDropdowns();
@@ -462,8 +470,8 @@
         alert(`🤖 ${addedCount}個のノーツを自動配置しました！`);
     });
 
-    // 譜面ファイルの保存 (.json)
-    document.getElementById('file-save-btn').addEventListener('click', () => {
+    // 共通の譜面ファイル保存（ダウンロード）関数
+    function downloadChartFile() {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(SONGS_DATABASE, null, 4));
         const dlAnchor = document.createElement('a');
         dlAnchor.setAttribute("href", dataStr);
@@ -471,13 +479,10 @@
         document.body.appendChild(dlAnchor);
         dlAnchor.click();
         dlAnchor.remove();
-    });
+    }
 
-    // 譜面ファイルの読み込み
-    document.getElementById('file-load-trigger').addEventListener('click', () => {
-        document.getElementById('file-load-input').click();
-    });
-    document.getElementById('file-load-input').addEventListener('change', (e) => {
+    // 共通の譜面ファイル読み込みハンドラ
+    sharedFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
@@ -491,9 +496,19 @@
                     alert("📥 譜面ファイルを読み込みました！");
                 } else { alert("ファイル構造が正しくありません。"); }
             } catch(err) { alert("パースエラー:\n" + err); }
+            e.target.value = ''; // 連続読み込み対応
         };
         reader.readAsText(file);
     });
+
+    // エディタ側＆選曲画面側の保存ボタンの連動
+    document.getElementById('file-save-btn').addEventListener('click', downloadChartFile);
+    document.getElementById('menu-file-save-btn').addEventListener('click', downloadChartFile);
+
+    // エディタ側＆選曲画面側の読み込みボタンの連動
+    document.getElementById('file-load-trigger').addEventListener('click', () => sharedFileInput.click());
+    document.getElementById('menu-file-load-btn').addEventListener('click', () => sharedFileInput.click());
+
 
     document.getElementById('edit-song-index').addEventListener('change', (e) => {
         editingSongIdx = parseInt(e.target.value);
