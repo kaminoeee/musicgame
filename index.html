@@ -2,74 +2,81 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>5Key音ゲー：全自動譜面ジェネレーター＆エディタ</title>
+    <title>ぼかせか！</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <style>
         body {
             margin: 0; background-color: #0c0c14; color: #fff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
             display: flex; flex-direction: row; height: 100vh; overflow: hidden;
+            user-select: none; -webkit-user-select: none;
         }
         #main-layout { display: flex; width: 100%; height: 100%; padding: 12px; box-sizing: border-box; gap: 15px; }
         
         /* 左側：ゲームエリア */
-        #game-area { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; }
+        #game-area { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; position: relative; }
         #game-container {
-            position: relative; width: 450px; height: 650px; background-color: #101020;
+            position: relative; width: 100%; max-width: 450px; height: 100%; max-height: 650px; background-color: #101020;
             border: 4px solid #3aa89b; border-radius: 12px; overflow: hidden; box-shadow: 0 0 25px rgba(58, 168, 155, 0.4);
         }
         #lanes-container { display: flex; width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+        
+        /* タッチ・タップを確実に検知するためのレーン設定 */
         .lane {
             flex: 1; height: 100%; border-right: 1px dashed rgba(255, 255, 255, 0.08); position: relative;
-            background: rgba(255, 255, 255, 0.003);
+            background: rgba(255, 255, 255, 0.005); touch-action: none;
         }
         .lane:last-child { border-right: none; }
-        .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 13px; font-weight: bold; color: #555577; }
+        .lane:active, .lane.touch-active { background: rgba(0, 255, 240, 0.08); }
+        .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: bold; color: #444466; opacity: 0; }
+        .lane-key-hint.show { opacity: 1; }
+
         #judge-line {
             position: absolute; bottom: 80px; left: 0; width: 100%; height: 6px;
             background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b); box-shadow: 0 0 15px #00fff0; pointer-events: none;
         }
         /* ノーツ */
-        .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; }
+        .note { position: absolute; width: 90%; left: 5%; height: 18px; border-radius: 4px; box-sizing: border-box; pointer-events: none;}
         .note-normal { background: linear-gradient(90deg, #00fff0, #00aa99); box-shadow: 0 0 8px #00fff0; }
         .note-flick { background: linear-gradient(90deg, #ff007f, #ff00ff); box-shadow: 0 0 10px #ff007f; height: 14px; border-radius: 10px; }
         .note-long { background: linear-gradient(90deg, #00ff66, #009933); box-shadow: 0 0 8px #00ff66; }
         .long-body { position: absolute; width: 80%; left: 10%; background: rgba(0, 255, 102, 0.25); border-left: 2px solid #00ff66; border-right: 2px solid #00ff66; pointer-events: none; }
         
-        /* UI・テキスト */
-        #ui-top { position: absolute; top: 15px; left: 20px; font-size: 18px; font-family: monospace; z-index: 10; }
+        /* UI */
+        #ui-top { position: absolute; top: 15px; left: 20px; font-size: 16px; font-family: monospace; z-index: 15; display: flex; gap: 15px; align-items: center;}
+        #config-trigger { background: #222; border: 1px solid #555; padding: 2px 8px; font-size: 11px; border-radius: 4px; cursor: pointer; color: #ccc; }
         #combo-container { position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; z-index: 10; }
         #combo-number { font-size: 54px; font-weight: bold; color: #00fff0; text-shadow: 0 0 12px rgba(0,255,240,0.6); }
         #judge-text { font-size: 28px; font-weight: bold; height: 35px; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
         
-        /* 各種画面オーバーレイ */
+        /* オーバーレイ画面群 */
         .overlay-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(10, 10, 20, 0.98); display: flex; flex-direction: column;
             align-items: center; justify-content: center; z-index: 20; text-align: center; padding: 20px; box-sizing: border-box;
         }
         
-        /* 楽曲選択メニュー */
-        .song-card {
-            background: #1a1a30; border: 1px solid #444; border-radius: 8px; padding: 10px; width: 85%;
-            margin-bottom: 10px; cursor: pointer; text-align: left; transition: 0.2s;
-        }
+        /* 選曲画面 */
+        .song-card { background: #1a1a30; border: 1px solid #444; border-radius: 8px; padding: 10px; width: 85%; margin-bottom: 10px; cursor: pointer; text-align: left; }
         .song-card.selected { border-color: #00fff0; background: #202045; }
         .diff-selector { display: flex; gap: 5px; margin-top: 5px; width: 100%; }
-        .diff-btn {
-            flex: 1; padding: 4px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; background: #333; color: #aaa; cursor: pointer;
-        }
+        .diff-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: none; background: #333; color: #aaa; cursor: pointer; }
         .diff-btn.active[data-diff="easy"] { background: #00ff66; color: #000; }
         .diff-btn.active[data-diff="normal"] { background: #00fff0; color: #000; }
         .diff-btn.active[data-diff="hard"] { background: #ff007f; color: #fff; }
 
-        /* 右側：エディタ */
+        /* 設定子画面 */
+        #config-overlay { display: none; z-index: 30; background: rgba(5,5,10,0.95); }
+
+        /* 右側：エディタ（?_adminがない場合は完全に非表示化される） */
         #editor-panel {
+            display: none; /* 初期は非表示 */
             width: 480px; background-color: #141424; border: 2px solid #ff007f;
             border-radius: 12px; padding: 15px; box-sizing: border-box;
-            display: flex; flex-direction: column; box-shadow: 0 0 20px rgba(255, 0, 127, 0.15);
+            flex-direction: column; box-shadow: 0 0 20px rgba(255, 0, 127, 0.15);
         }
         .panel-section { background: #1b1b32; padding: 10px; border-radius: 6px; margin-bottom: 8px; }
-        .section-title { color: #ff007f; font-size: 13px; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .section-title { color: #ff007f; font-size: 12px; font-weight: bold; margin-bottom: 6px; display: flex; justify-content: space-between; }
         
         .palette-group { display: flex; gap: 4px; }
         .palette-btn { flex: 1; padding: 6px; font-size: 11px; font-weight: bold; border-radius: 4px; border: 2px solid transparent; cursor: pointer; background: #242440; color: #fff; }
@@ -90,15 +97,13 @@
         .tl-body-line { position: absolute; width: 4px; background: rgba(0, 255, 102, 0.4); pointer-events: none; transform: translateX(6px); }
 
         button { background: #3aa89b; color: white; border: none; padding: 8px 16px; font-size: 13px; border-radius: 15px; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #00fff0; color: #101020; box-shadow: 0 0 10px #00fff0; }
+        button:hover { background: #00fff0; color: #101020; }
         .btn-pink { background: #ff007f; }
-        .btn-pink:hover { background: #ff55aa; box-shadow: 0 0 10px #ff007f; }
         .btn-blue { background: #00bfff; }
-        .btn-blue:hover { background: #66d9ff; box-shadow: 0 0 10px #00bfff; }
         
         .flex-row { display: flex; gap: 8px; align-items: center; }
         #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: red; box-shadow: 0 0 6px red; z-index: 5; pointer-events: none; }
-        input, select { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
+        input, select, textarea { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 5px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -106,7 +111,11 @@
 <div id="main-layout">
     <div id="game-area">
         <div id="game-container">
-            <div id="ui-top">SCORE: <span id="score">000000</span></div>
+            <div id="ui-top">
+                <span>SCORE: <span id="score">000000</span></span>
+                <button id="config-trigger">⚙️設定</button>
+            </div>
+            
             <div id="lanes-container">
                 <div class="lane" id="lane-0"><span class="lane-key-hint">A</span></div>
                 <div class="lane" id="lane-1"><span class="lane-key-hint">S</span></div>
@@ -114,6 +123,7 @@
                 <div class="lane" id="lane-3"><span class="lane-key-hint">K</span></div>
                 <div class="lane" id="lane-4"><span class="lane-key-hint">L</span></div>
             </div>
+            
             <div id="judge-line"></div>
             <div id="notes-layer"></div>
             <div id="combo-container">
@@ -122,28 +132,25 @@
             </div>
 
             <div id="title-screen" class="overlay-screen">
-                <h1 style="color: #00fff0; margin: 0 0 10px 0; font-size: 28px;">POLYPHONIC 5KEY</h1>
-                <p style="color: #888; font-size: 12px; margin-bottom: 30px;">~ 直感譜面制作・シミュレーター ~</p>
-                <button id="mode-single-btn" style="width: 200px; font-size: 15px; margin-bottom: 10px;">シングルプレイ</button>
-                <button id="mode-multi-btn" style="width: 200px; font-size: 14px; background: #333; color: #666; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
+                <h1 style="color: #00fff0; margin: 0 0 5px 0; font-size: 26px;">POLYPHONIC 5KEY</h1>
+                <p style="color: #666; font-size: 11px; margin-bottom: 25px;">基本タッチ専用仕様 / エディタ保護機能付</p>
+                <button id="mode-single-btn" style="width: 200px; font-size: 14px; margin-bottom: 10px;">シングルプレイ</button>
+                <button id="mode-multi-btn" style="width: 200px; font-size: 13px; background: #222; color: #555; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
             </div>
 
             <div id="select-screen" class="overlay-screen" style="display: none;">
-                <h3 style="color: #ff007f; margin: 0 0 15px 0;">SELECT MUSIC</h3>
-                
-                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:320px; overflow-y:auto;" id="song-list-container">
-                    </div>
-
-                <div class="flex-row" style="margin-top: 25px; width: 85%;">
+                <h4 style="color: #ff007f; margin: 0 0 12px 0;">SELECT MUSIC</h4>
+                <div style="width:100%; display:flex; flex-direction:column; align-items:center; max-height:300px; overflow-y:auto;" id="song-list-container"></div>
+                <div class="flex-row" style="margin-top: 20px; width: 85%;">
                     <button id="select-back-btn" style="background:#555;">戻る</button>
-                    <button id="start-game-btn" class="btn-pink" style="flex:1; font-size:15px; font-weight:bold;">GAME START</button>
+                    <button id="start-game-btn" class="btn-pink" style="flex:1; font-weight:bold;">GAME START</button>
                 </div>
             </div>
 
             <div id="result-screen" class="overlay-screen" style="display: none;">
-                <h2 style="color: #ff007f; margin: 0;">STAGE CLEAR</h2>
+                <h3 style="color: #ff007f; margin: 0;">STAGE CLEAR</h3>
                 <div style="font-size: 32px; color: #00fff0; font-weight: bold; font-family: monospace;" id="res-score">000000</div>
-                <div style="margin: 10px 0; font-size: 13px; text-align: left; background: rgba(255,255,255,0.04); padding: 12px; border-radius: 8px; min-width: 220px;">
+                <div style="margin: 8px 0; font-size: 12px; text-align: left; background: rgba(255,255,255,0.04); padding: 10px; border-radius: 8px; min-width: 210px;">
                     Max Combo: <span id="res-combo" style="float:right;">0</span><br>
                     <span style="color:#00fff0;">PERFECT:</span> <span id="res-p" style="float:right;">0</span><br>
                     <span style="color:#ffaa00;">GREAT:</span> <span id="res-g" style="float:right;">0</span><br>
@@ -151,20 +158,32 @@
                     <span style="color:#ff3333;">MISS:</span> <span id="res-m" style="float:right;">0</span>
                 </div>
                 <div class="flex-row" style="width: 80%;">
-                    <button id="res-to-menu-btn" style="background:#555; flex:1;">選曲へ戻る</button>
+                    <button id="res-to-menu-btn" style="background:#555; flex:1;">選曲へ</button>
                     <button id="retry-btn" class="btn-pink" style="flex:1;">再挑戦</button>
                 </div>
             </div>
+
+            <div id="config-overlay" class="overlay-screen">
+                <h3 style="color:#00fff0; margin:0 0 15px 0;">OPTION SETTINGS</h3>
+                <div style="text-align:left; width:80%; background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; font-size:13px; line-height:1.8;">
+                    <label style="font-weight:bold; color:#fff; font-size:14px;">
+                        <input type="checkbox" id="config-use-keyboard" style="width:auto; margin-right:8px;"> 非推奨キーボード操作を有効化
+                    </label>
+                    <p style="color:#888; font-size:11px; margin:5px 0 0 22px;">※チェックを外すと完全タッチ専用になります（推奨）。有効化時のキー：A, S, Space, K, L</p>
+                </div>
+                <button id="config-close-btn" class="btn-pink" style="margin-top:20px; width:120px;">閉じる</button>
+            </div>
+
         </div>
     </div>
 
     <div id="editor-panel">
-        <div style="font-size: 14px; font-weight: bold; color: #ff007f; margin-bottom: 6px; border-bottom: 1px solid #ff007f; padding-bottom:2px;">
-            ⚙️ 楽曲追加・難易度別譜面エディタ
+        <div style="font-size: 13px; font-weight: bold; color: #ff007f; margin-bottom: 6px; border-bottom: 1px solid #ff007f; padding-bottom:2px;">
+            🛠 管理者専用譜面スタジオ（?_admin 認証済）
         </div>
         
         <div class="panel-section">
-            <div class="section-title">🎵 1. 編集する楽曲・難易度を選択</div>
+            <div class="section-title">🎵 1. 曲編集・追加</div>
             <div class="flex-row">
                 <select id="edit-song-index" style="flex:2;"></select>
                 <select id="edit-diff-zone" style="flex:1;">
@@ -173,32 +192,30 @@
                     <option value="hard">HARD</option>
                 </select>
             </div>
-            <div class="flex-row" style="margin-top:6px;">
-                <input type="text" id="new-song-title" placeholder="新規追加する曲名" style="flex:2;">
-                <button id="add-new-song-btn" style="font-size:11px; padding:4px 8px;">楽曲追加</button>
+            <div class="flex-row" style="margin-top:4px;">
+                <input type="text" id="new-song-title" placeholder="追加する新曲名" style="flex:2;">
+                <button id="add-new-song-btn" style="font-size:11px; padding:4px 6px;">追加</button>
             </div>
-            <label>音源URL (.mp3直リンク)</label>
-            <input type="text" id="edit-song-url" placeholder="空欄時はシンセ音が鳴ります">
+            <label style="font-size:10px; color:#aaa; margin-top:3px;">音源URL (.mp3)</label>
+            <input type="text" id="edit-song-url">
         </div>
 
         <div class="panel-section">
-            <div class="section-title">✏️ 2. ノーツパレット</div>
+            <div class="section-title">✏️ 2. パレット選択</div>
             <div class="palette-group">
-                <button class="palette-btn active" data-type="normal">■ 単押し</button>
-                <button class="palette-btn" data-type="flick">▲ フリック</button>
-                <button class="palette-btn" data-type="long-start">▼ 長始点</button>
-                <button class="palette-btn" data-type="long-end">▲ 長終点</button>
+                <button class="palette-btn active" data-type="normal">単押し</button>
+                <button class="palette-btn" data-type="flick">フリック</button>
+                <button class="palette-btn" data-type="long-start">長始点</button>
+                <button class="palette-btn" data-type="long-end">長終点</button>
             </div>
         </div>
 
         <div class="panel-section" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-            <div class="section-title">
-                <span>⏱ 3. タイムライン (Wクリックでワープ再生)</span>
-            </div>
+            <div class="section-title">⏱ 3. タイムライン (再生中も音が流れます)</div>
             <div class="flex-row" style="margin-bottom: 4px;">
-                <button id="edit-play-btn" style="font-size:11px; padding:4px 10px;">⏯ 再生/一時停止</button>
+                <button id="edit-play-btn" style="font-size:11px; padding:3px 8px;">⏯ 再生/一時停止</button>
                 <span id="editor-time-disp" style="font-family:monospace; font-size:12px; color:#00fff0;">0.00s</span>
-                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:4px 8px; margin-left:auto;">全消去</button>
+                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:3px 6px; margin-left:auto;">クリア</button>
             </div>
             <div id="timeline-container">
                 <div id="timeline-grid"><div id="play-cursor"></div></div>
@@ -206,17 +223,14 @@
         </div>
 
         <div class="panel-section" style="margin-bottom:0;">
-            <div class="section-title" style="color:#00bfff;">💾 4. 作成した全データを書き出し保存</div>
-            <button id="export-html-btn" class="btn-blue" style="width:100%; font-weight:bold; font-size:13px; padding:10px;">
-                📥 この譜面入りのゲームをHTMLとして保存
-            </button>
+            <div class="section-title" style="color:#00bfff;">📋 4. 設定コード書き出し（置換用データ型）</div>
+            <textarea id="export-code-output" style="height:55px; font-size:9px; font-family:monospace;" readonly></textarea>
         </div>
     </div>
 </div>
 
 <script>
-    // --- 永続データベース（ここへ全データを詰め込む） ---
-    // ※自動生成時、この変数の中身がそっくり書き換えられて出力されます
+    // --- 永続的な譜面データベース ---
     let SONGS_DATABASE = [
         {
             title: "メルト (Melt)",
@@ -233,28 +247,29 @@
         }
     ];
 
-    // グローバル選択状態
-    let selectedSongIdx = 0;
-    let selectedDiff = "normal"; // ゲームプレイ用
-    let editingSongIdx = 0;
-    let editingDiff = "normal"; // エディタ用
+    // システム状態設定
+    let controlMode = "touch"; // "touch" or "keyboard"
+    let selectedSongIdx = 0; let selectedDiff = "normal";
+    let editingSongIdx = 0; let editingDiff = "normal";
     let selectedNodeType = "normal";
 
     const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
     const scrollSpeed = 360; const targetY = 570; const pixelsPerSecond = 120;
 
-    // 稼働ステート
+    // フラグ・コア変数
     let gameStarted = false; let isPlayingInEditor = false;
     let audioCtx = null; let audioHtml = null;
     let startTime = 0; let pauseTimeOffset = 0;
     let score = 0; let combo = 0; let maxCombo = 0;
     let cntPerfect = 0; let cntGreat = 0; let cntGood = 0; let cntMiss = 0;
     let activeNotes = [];
+    let lastEditorPlaybackTime = 0;
 
-    // DOM群
+    // DOMキャッシュ
     const titleScreen = document.getElementById('title-screen');
     const selectScreen = document.getElementById('select-screen');
     const resultScreen = document.getElementById('result-screen');
+    const configOverlay = document.getElementById('config-overlay');
     const notesLayer = document.getElementById('notes-layer');
     const scoreEl = document.getElementById('score');
     const judgeTextEl = document.getElementById('judge-text');
@@ -263,119 +278,103 @@
     const timelineContainer = document.getElementById('timeline-container');
     const playCursor = document.getElementById('play-cursor');
     const timeDisp = document.getElementById('editor-time-disp');
+    const exportOutput = document.getElementById('export-code-output');
 
     window.addEventListener('DOMContentLoaded', () => {
+        checkAdminAccess(); // 管理者認証チェック
         refreshSongDropdowns();
         renderSelectionMenu();
         initTimeline();
+        setupTouchControls();
         setupPalette();
     });
 
-    // --- 各種セレクト画面のUI構築 ---
+    // 【重要機能】 ?_admin パラメータがついている時だけエディタを開放
+    function checkAdminAccess() {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('_admin')) {
+            document.getElementById('editor-panel').style.display = 'flex';
+        } else {
+            document.getElementById('editor-panel').style.display = 'none';
+        }
+    }
+
+    // --- 設定UIロジック ---
+    document.getElementById('config-trigger').addEventListener('click', () => configOverlay.style.display = 'flex');
+    document.getElementById('config-close-btn').addEventListener('click', () => {
+        const kbCheck = document.getElementById('config-use-keyboard').checked;
+        controlMode = kbCheck ? "keyboard" : "touch";
+        // ヒントの表示制御
+        document.querySelectorAll('.lane-key-hint').forEach(el => {
+            if(controlMode === 'keyboard') el.classList.add('show');
+            else el.classList.remove('show');
+        });
+        configOverlay.style.display = 'none';
+    });
+
+    // --- エディタ関連内部同期 ---
     function refreshSongDropdowns() {
-        const select = document.getElementById('edit-song-index');
-        select.innerHTML = '';
+        const select = document.getElementById('edit-song-index'); select.innerHTML = '';
         SONGS_DATABASE.forEach((s, idx) => {
-            const opt = document.createElement('option');
-            opt.value = idx; opt.textContent = s.title;
-            select.appendChild(opt);
+            const opt = document.createElement('option'); opt.value = idx; opt.textContent = s.title; select.appendChild(opt);
         });
         select.value = editingSongIdx;
         document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
+        updateCodeOutput();
     }
 
     function renderSelectionMenu() {
-        const container = document.getElementById('song-list-container');
-        container.innerHTML = '';
+        const container = document.getElementById('song-list-container'); container.innerHTML = '';
         SONGS_DATABASE.forEach((song, idx) => {
             const card = document.createElement('div');
             card.className = `song-card ${idx === selectedSongIdx ? 'selected' : ''}`;
             card.innerHTML = `<strong>🎵 ${song.title}</strong>`;
-            
-            const div = document.createElement('div');
-            div.className = "diff-selector";
+            const div = document.createElement('div'); div.className = "diff-selector";
             ['easy','normal','hard'].forEach(d => {
                 const b = document.createElement('button');
                 b.className = `diff-btn ${(idx===selectedSongIdx && selectedDiff===d)?'active':''}`;
-                b.setAttribute('data-diff', d);
                 b.textContent = d.toUpperCase();
-                b.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    selectedSongIdx = idx;
-                    selectedDiff = d;
-                    renderSelectionMenu();
-                });
+                b.addEventListener('click', (e) => { e.stopPropagation(); selectedSongIdx = idx; selectedDiff = d; renderSelectionMenu(); });
                 div.appendChild(b);
             });
-            
-            card.addEventListener('click', () => {
-                selectedSongIdx = idx;
-                renderSelectionMenu();
-            });
-            card.appendChild(div);
-            container.appendChild(card);
+            card.addEventListener('click', () => { selectedSongIdx = idx; renderSelectionMenu(); });
+            card.appendChild(div); container.appendChild(card);
         });
     }
 
-    // エディタ切り替え処理
     document.getElementById('edit-song-index').addEventListener('change', (e) => {
         editingSongIdx = parseInt(e.target.value);
         document.getElementById('edit-song-url').value = SONGS_DATABASE[editingSongIdx].url;
         initTimeline();
     });
-    document.getElementById('edit-diff-zone').addEventListener('change', (e) => {
-        editingDiff = e.target.value;
-        initTimeline();
-    });
-    document.getElementById('edit-song-url').addEventListener('input', (e) => {
-        SONGS_DATABASE[editingSongIdx].url = e.target.value.trim();
-    });
+    document.getElementById('edit-diff-zone').addEventListener('change', (e) => { editingDiff = e.target.value; initTimeline(); });
+    document.getElementById('edit-song-url').addEventListener('input', (e) => { SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); updateCodeOutput(); });
 
-    // 曲追加
     document.getElementById('add-new-song-btn').addEventListener('click', () => {
         const title = document.getElementById('new-song-title').value.trim() || "新楽曲";
-        SONGS_DATABASE.push({
-            title: title, url: "",
-            charts: { easy: [], normal: [], hard: [] }
-        });
-        editingSongIdx = SONGS_DATABASE.length - 1;
-        document.getElementById('new-song-title').value = '';
-        refreshSongDropdowns();
-        renderSelectionMenu();
-        initTimeline();
+        SONGS_DATABASE.push({ title: title, url: "", charts: { easy: [], normal: [], hard: [] } });
+        editingSongIdx = SONGS_DATABASE.length - 1; document.getElementById('new-song-title').value = '';
+        refreshSongDropdowns(); renderSelectionMenu(); initTimeline();
     });
 
-    // パレット設定
     function setupPalette() {
         document.querySelectorAll('.palette-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                selectedNodeType = btn.getAttribute('data-type');
+                btn.classList.add('active'); selectedNodeType = btn.getAttribute('data-type');
             });
         });
     }
 
-    // --- シーンナビゲーション ---
-    document.getElementById('mode-single-btn').addEventListener('click', () => {
-        titleScreen.style.display = 'none';
-        selectScreen.style.display = 'flex';
-    });
-    document.getElementById('select-back-btn').addEventListener('click', () => {
-        selectScreen.style.display = 'none';
-        titleScreen.style.display = 'flex';
-    });
-    document.getElementById('res-to-menu-btn').addEventListener('click', () => {
-        resultScreen.style.display = 'none';
-        selectScreen.style.display = 'flex';
-    });
+    function updateCodeOutput() {
+        exportOutput.value = "let SONGS_DATABASE = " + JSON.stringify(SONGS_DATABASE, null, 4) + ";";
+    }
 
-    // --- タイムライン構築 ---
+    // --- タイムライン（Wクリックワープ対応） ---
     function initTimeline() {
         timelineGrid.querySelectorAll('.timeline-line, .timeline-note, .tl-body-line').forEach(el => el.remove());
         const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
         
-        // ロング結線
         for(let l=0; l<5; l++) {
             const laneNotes = chart.filter(n => n.lane === l).sort((a,b)=>a.time - b.time);
             for(let i=0; i<laneNotes.length; i++) {
@@ -385,26 +384,20 @@
                         const bl = document.createElement('div'); bl.className = 'tl-body-line';
                         bl.style.bottom = (laneNotes[i].time * pixelsPerSecond) + 'px';
                         bl.style.height = ((nextEnd.time - laneNotes[i].time) * pixelsPerSecond) + 'px';
-                        bl.style.left = (10 + l * 18) + '%';
-                        timelineGrid.appendChild(bl);
+                        bl.style.left = (10 + l * 18) + '%'; timelineGrid.appendChild(bl);
                     }
                 }
             }
         }
 
-        // 配置ノーツ
         chart.forEach((note, index) => {
-            const noteEl = document.createElement('div');
-            noteEl.className = `timeline-note tl-${note.type}`;
-            noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px';
-            noteEl.style.left = (10 + note.lane * 18) + '%';
+            const noteEl = document.createElement('div'); noteEl.className = `timeline-note tl-${note.type}`;
+            noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px'; noteEl.style.left = (10 + note.lane * 18) + '%';
             noteEl.textContent = note.type==='normal'?'単':note.type==='flick'?'払':note.type==='long-start'?'長始':'長終';
-            
-            noteEl.addEventListener('contextmenu', (e) => {
-                e.preventDefault(); chart.splice(index, 1); initTimeline();
-            });
+            noteEl.addEventListener('contextmenu', (e) => { e.preventDefault(); chart.splice(index, 1); initTimeline(); updateCodeOutput(); });
             timelineGrid.appendChild(noteEl);
         });
+        updateCodeOutput();
     }
 
     timelineGrid.addEventListener('click', (e) => {
@@ -414,7 +407,6 @@
         const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
         if(clickLane >=0 && clickLane < 5 && clickTime >= 0) {
             const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
-            // 重複消去
             SONGS_DATABASE[editingSongIdx].charts[editingDiff] = chart.filter(n => !(n.lane === clickLane && Math.abs(n.time - clickTime) < 0.08));
             SONGS_DATABASE[editingSongIdx].charts[editingDiff].push({ lane: clickLane, time: clickTime, type: selectedNodeType });
             SONGS_DATABASE[editingSongIdx].charts[editingDiff].sort((a,b)=>a.time - b.time);
@@ -433,10 +425,11 @@
         }
     });
 
-    // エディタ再生制御
+    // 【重要機能】エディタ再生中も完全に音が流れるように処理
     document.getElementById('edit-play-btn').addEventListener('click', () => {
         if(!isPlayingInEditor) {
             isPlayingInEditor = true; startTime = performance.now() - (pauseTimeOffset * 1000);
+            lastEditorPlaybackTime = pauseTimeOffset;
             const url = SONGS_DATABASE[editingSongIdx].url;
             if(url) {
                 if(!audioHtml) audioHtml = new Audio(url);
@@ -455,19 +448,33 @@
         const y = curTime * pixelsPerSecond;
         playCursor.style.bottom = y + 'px';
         if(y > 100) timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
+
+        // 内蔵音源時：エディタ再生中にノーツの線を通過したら音を鳴らすシステム
+        if(!SONGS_DATABASE[editingSongIdx].url) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const chart = SONGS_DATABASE[editingSongIdx].charts[editingDiff];
+            chart.forEach(n => {
+                if(n.time >= lastEditorPlaybackTime && n.time < curTime) { playSynthTone(400 + n.lane * 60); }
+            });
+        }
+        lastEditorPlaybackTime = curTime;
         requestAnimationFrame(updateEditorTimeline);
     }
 
     document.getElementById('clear-chart-btn').addEventListener('click', () => {
-        if(confirm("この譜面をリセットしますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
+        if(confirm("この譜面を全消去しますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
     });
 
-    // --- ゲームコアシステム ---
+    // --- 画面遷移ナビゲーション ---
+    document.getElementById('mode-single-btn').addEventListener('click', () => { titleScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
+    document.getElementById('select-back-btn').addEventListener('click', () => { selectScreen.style.display = 'none'; titleScreen.style.display = 'flex'; });
+    document.getElementById('res-to-menu-btn').addEventListener('click', () => { resultScreen.style.display = 'none'; selectScreen.style.display = 'flex'; });
+
+    // --- ゲーム本体プレイ・システム ---
     function initGamePlay() {
         score = 0; combo = 0; maxCombo = 0; cntPerfect = 0; cntGreat = 0; cntGood = 0; cntMiss = 0;
         updateUI(); notesLayer.innerHTML = ''; activeNotes = [];
         judgeTextEl.textContent = ''; comboNumberEl.textContent = '';
-        
         selectScreen.style.display = 'none'; resultScreen.style.display = 'none';
         gameStarted = true; isPlayingInEditor = false;
 
@@ -476,7 +483,7 @@
             if(audioHtml) audioHtml.pause();
             audioHtml = new Audio(song.url);
             audioHtml.play().then(() => { startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate); })
-            .catch(() => { alert("音源再生エラー"); stopGame(false); });
+            .catch(() => { alert("音源エラー"); stopGame(false); });
         } else {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             startTime = performance.now(); buildGameNotes(song.charts[selectedDiff]); requestAnimationFrame(gameUpdate);
@@ -517,7 +524,6 @@
     function gameUpdate() {
         if (!gameStarted) return;
         const curTime = getCurrentTime();
-        playCursor.style.bottom = (curTime * pixelsPerSecond) + 'px';
         let remaining = false;
 
         activeNotes.forEach(note => {
@@ -532,7 +538,6 @@
                 note.bodyElement.style.top = tailY + 'px'; note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
             }
 
-            // スルーロジック
             if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
             else if(note.type === 'long') {
                 if(!note.hit && timeRemaining < -0.15) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
@@ -555,27 +560,47 @@
         } else { selectScreen.style.display = 'flex'; }
     }
 
-    // --- キーボード入力判定 ---
-    window.addEventListener('keydown', (e) => {
-        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
-        e.preventDefault(); const curTime = getCurrentTime();
-        if (gameStarted) {
+    // --- 【超重要】完全タッチ専用インプット判定ロジック ---
+    function setupTouchControls() {
+        for (let l = 0; l < 5; l++) {
+            const laneEl = document.getElementById(`lane-${l}`);
+            
+            // タッチ開始 / マウスダウン（マルチタッチ対応）
+            const handleDown = (e) => {
+                if (!gameStarted) return;
+                e.preventDefault();
+                laneEl.classList.add('touch-active');
+                executeInputTrigger(l, "down");
+            };
+
+            // タッチ終了 / マウスアップ
+            const handleUp = (e) => {
+                if (!gameStarted) return;
+                e.preventDefault();
+                laneEl.classList.remove('touch-active');
+                executeInputTrigger(l, "up");
+            };
+
+            laneEl.addEventListener('touchstart', handleDown, { passive: false });
+            laneEl.addEventListener('touchend', handleUp, { passive: false });
+            
+            // PCブラウザテスト用（タッチモード時も動作）
+            laneEl.addEventListener('mousedown', handleDown);
+            laneEl.addEventListener('mouseup', handleUp);
+        }
+    }
+
+    function executeInputTrigger(laneIdx, type) {
+        const curTime = getCurrentTime();
+        if(type === "down") {
+            playSynthTone(400 + laneIdx * 60);
             let target = null; let min = Infinity;
             activeNotes.forEach(n => {
-                if(n.lane === laneIdx && !n.hit && n.type !== 'long') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
-                if(n.lane === laneIdx && !n.hit && n.type === 'long') { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
+                if(n.lane === laneIdx && !n.hit) { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
             });
             if(target && min < 0.20) { target.hit = true; if(target.type !== 'long') target.element.remove(); hitJudge(min, target.type==='flick'); }
-        } else if(isPlayingInEditor) {
-            currentSong.chart.push({ lane: laneIdx, time: Math.round(curTime * 100)/100, type: 'normal' });
-            initTimeline();
-        }
-    });
-
-    window.addEventListener('keyup', (e) => {
-        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
-        if (gameStarted) {
-            const curTime = getCurrentTime();
+        } else {
+            // キーアップ（ロング終点）
             activeNotes.forEach(n => {
                 if(n.lane === laneIdx && n.type === 'long' && n.hit && !n.tailHit) {
                     const d = Math.abs((n.time + n.duration) - curTime); n.tailHit = true;
@@ -583,13 +608,31 @@
                 }
             });
         }
+    }
+
+    // --- 【非推奨】隠し設定：キーボード用バックアップインプット ---
+    window.addEventListener('keydown', (e) => {
+        if(controlMode !== "keyboard") return;
+        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
+        e.preventDefault();
+        const targetLane = document.getElementById(`lane-${laneIdx}`);
+        if(targetLane) targetLane.classList.add('touch-active');
+        executeInputTrigger(laneIdx, "down");
     });
 
+    window.addEventListener('keyup', (e) => {
+        if(controlMode !== "keyboard") return;
+        const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
+        const targetLane = document.getElementById(`lane-${laneIdx}`);
+        if(targetLane) targetLane.classList.remove('touch-active');
+        executeInputTrigger(laneIdx, "up");
+    });
+
+    // 共通システムスコア処理
     function hitJudge(d, isFlick) {
         if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT":"PERFECT");
         else if(d < 0.12) countJudge("GREAT"); else countJudge("GOOD");
     }
-
     function countJudge(type) {
         let c = "#fff";
         if(type.includes("PERFECT")) { cntPerfect++; score += 1000 + combo*10; combo++; c="#00fff0"; }
@@ -601,28 +644,12 @@
         comboNumberEl.textContent = combo > 0 ? combo : ""; updateUI();
     }
     function updateUI() { scoreEl.textContent = String(score).padStart(6, '0'); }
-
-    // --- 【超重要】HTMLの自動生成・保存（エクスポート機能） ---
-    document.getElementById('export-html-btn').addEventListener('click', () => {
-        // 現在開いているソースコード（自分自身）をテキストとして取得
-        let currentSource = document.documentElement.outerHTML;
-        
-        // ソース内の `let SONGS_DATABASE = [...];` の部分を、今編集・追加した最新のデータ構造で丸ごと置換する
-        const dbString = JSON.stringify(SONGS_DATABASE, null, 4);
-        const regex = /let\s+SONGS_DATABASE\s*=\s*\[[\s\S]*?\];/;
-        
-        let newSource = currentSource.replace(regex, `let SONGS_DATABASE = ${dbString};`);
-        
-        // Blobオブジェクトにしてブラウザからファイルとしてダウンロード
-        const blob = new Blob(["<!DOCTYPE html>\n" + newSource], { type: "text/html;charset=utf-8" });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = "my_custom_music_game.html"; // 出力ファイル名
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        alert("現在のすべての楽曲・難易度譜面データを統合した新しいHTMLファイルをダウンロードしました！次回からはそのファイルをそのまま開いて遊べます。");
-    });
+    function playSynthTone(freq) {
+        if(!audioCtx) return; let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(freq, audioCtx.currentTime); gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08); osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+    }
 </script>
 </body>
 </html>
