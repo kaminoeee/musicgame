@@ -30,10 +30,12 @@
         .lane-key-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 11px; font-weight: bold; color: #444466; opacity: 0; }
         .lane-key-hint.show { opacity: 1; }
 
-        /* ゲーム画面側の判定線 */
+        /* 強化されたネオン判定線 */
         #judge-line {
-            position: absolute; bottom: 80px; left: 0; width: 100%; height: 6px;
-            background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b); box-shadow: 0 0 15px #00fff0; pointer-events: none;
+            position: absolute; bottom: 80px; left: 0; width: 100%; height: 8px;
+            background: linear-gradient(90deg, #00fff0, #3aa89b, #00fff0); 
+            box-shadow: 0 0 18px #00fff0, 0 0 8px rgba(0, 255, 240, 0.8); 
+            pointer-events: none;
             z-index: 5;
         }
         /* ノーツ */
@@ -116,8 +118,7 @@
         #play-cursor { position: absolute; left: 0; width: 100%; height: 2px; background: #ff1133; box-shadow: 0 0 8px #ff1133; z-index: 10; pointer-events: none; }
         input, select, textarea { width: 100%; background: #080810; border: 1px solid #444; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; box-sizing: border-box; }
         
-        .credit-text { font-size: 10px; color: #444466; margin-top: 10px; text-align: center; font-family: monospace; }
-        .score-indicator { font-size: 10px; color: #00fff0; margin-top: 2px; font-family: monospace; }
+        .credit-text { font-size: 10px; color: #444466; margin-top: 10px; text-align: center; font-family: monospace; letter-spacing: 1px; }
     </style>
 </head>
 <body>
@@ -146,11 +147,13 @@
             </div>
 
             <div id="title-screen" class="overlay-screen">
-                <h1 style="color: #00fff0; margin: 0 0 5px 0; font-size: 26px;">POLYPHONIC 5KEY</h1>
+                <h1 style="color: #00fff0; margin: 0 0 5px 0; font-size: 36px; text-shadow: 0 0 15px rgba(0,255,240,0.6); font-weight: 900;">ぼかせか！</h1>
                 <p style="color: #666; font-size: 11px; margin-bottom: 25px;">判定線・リズムグリッド表示強化</p>
                 <button id="mode-single-btn" style="width: 200px; font-size: 14px; margin-bottom: 10px;">シングルプレイ</button>
                 <button id="mode-multi-btn" style="width: 200px; font-size: 13px; background: #222; color: #555; cursor: not-allowed;" disabled>マルチプレイ (開発予定)</button>
-                <div class="credit-text" style="color: #555577; margin-top: 40px;">DEVELOPED BY POLYPHONIC STUDIO<br>&copy; 2026 ALL RIGHTS RESERVED.</div>
+                <div class="credit-text" style="color: #555577; margin-top: 40px; font-weight: bold;">
+                    DEVELOPED BY EEE<br>EEESTUDIO
+                </div>
             </div>
 
             <div id="select-screen" class="overlay-screen" style="display: none;">
@@ -277,7 +280,7 @@
             <button id="import-code-btn" style="font-size:10px; padding:3px 10px; background:#005577; margin-top:3px; width:100%;">📥 上記のコードからデータをインポート（上書き読み込み）</button>
         </div>
         
-        <div class="credit-text">POWERED BY POLYPHONIC RHYTHM ENGINE v1.3.0</div>
+        <div class="credit-text">POWERED BY EEESTUDIO RHYTHM ENGINE v1.4.0</div>
     </div>
 </div>
 
@@ -399,7 +402,6 @@
             ['easy','normal','hard'].forEach(d => {
                 const saveKey = `bocaseca_score_${song.title}_${d}`;
                 const savedScore = localStorage.getItem(saveKey) || "------";
-                const savedCombo = localStorage.getItem(saveKey + "_combo") || "0";
                 
                 const b = document.createElement('button');
                 b.className = `diff-btn ${(idx===selectedSongIdx && selectedDiff===d)?'active':''}`;
@@ -453,7 +455,6 @@
         }
     });
 
-    // --- インポート機能の実装 ---
     document.getElementById('import-code-btn').addEventListener('click', () => {
         const rawCode = exportOutput.value.trim();
         try {
@@ -467,11 +468,10 @@
                 editingSongIdx = 0; selectedSongIdx = 0;
                 refreshSongDropdowns(); renderSelectionMenu(); initTimeline();
                 alert("📥 譜面データを正常にインポートしました！");
-            } else { alert("エラー: 配列形式のデータではありません。"); }
-        } catch(err) { alert("インポートに失敗しました。コードが正しい形式か確認してください。\n" + err); }
+            } else { alert("エラー: 配列形式 of データではありません。"); }
+        } catch(err) { alert("インポートに失敗しました。\n" + err); }
     });
 
-    // --- コピペ機能の実装 ---
     document.getElementById('execute-copy-btn').addEventListener('click', () => {
         if(SONGS_DATABASE.length === 0) return;
         const startBeat = parseFloat(document.getElementById('copy-start-beat').value);
@@ -518,8 +518,8 @@
         if(SONGS_DATABASE.length === 0) return;
         
         const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
-        const beatDuration = 60 / bpm; // 1拍の秒数
-        const totalBeats = 120; // 120拍分生成
+        const beatDuration = 60 / bpm; 
+        const totalBeats = 120; 
 
         for (let b = 0; b <= totalBeats; b += 0.5) {
             const t = b * beatDuration;
@@ -567,11 +567,10 @@
             const rect = timelineGrid.getBoundingClientRect();
             let clickTime = ((rect.bottom - e.clientY) / pixelsPerSecond);
             
-            // BPMに合わせたスナップ配置（0.5拍刻みのグリッド線に自動吸着）
             const bpm = SONGS_DATABASE[editingSongIdx].bpm || 120;
             const beatDuration = 60 / bpm;
             let currentBeat = clickTime / beatDuration;
-            currentBeat = Math.round(currentBeat * 2) / 2; // 0.5拍単位
+            currentBeat = Math.round(currentBeat * 2) / 2; 
             clickTime = currentBeat * beatDuration;
             
             const clickLane = Math.floor(((e.clientX - rect.left) / rect.width) * 5);
@@ -631,12 +630,11 @@
         playCursor.style.bottom = y + 'px';
         if(y > 100) timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
 
-        // メトロノーム発音処理
         if(document.getElementById('editor-metronome-toggle').checked) {
             let currentQuantizedBeat = Math.floor(curBeat);
             if(currentQuantizedBeat > lastMetronomeBeat) {
                 if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                playSynthTone(currentQuantizedBeat % 4 === 0 ? 880 : 440); // 1拍目は高音
+                playSynthTone(currentQuantizedBeat % 4 === 0 ? 880 : 440); 
                 lastMetronomeBeat = currentQuantizedBeat;
             }
         }
@@ -657,7 +655,6 @@
         if(confirm("この譜面を全消去しますか？")) { SONGS_DATABASE[editingSongIdx].charts[editingDiff] = []; initTimeline(); }
     });
 
-    // --- 楽曲がないない状態（0曲）の時はプレイ画面に進ませない安全ガード ---
     document.getElementById('mode-single-btn').addEventListener('click', () => { 
         if(SONGS_DATABASE.length === 0) {
             alert("⚠️ プレイ可能な楽曲データが登録されていません。右側のエディタから楽曲を新規作成（追加）するか、設定コードをインポートしてください！");
@@ -726,7 +723,7 @@
         const curTime = getCurrentTime();
         let remaining = false;
         
-        // ユーザーが変更したノーツスピード倍率を反映
+        // 変更された速度倍率を適用
         const currentScrollSpeed = baseScrollSpeed * userSpeedMultiplier;
 
         activeNotes.forEach(note => {
@@ -741,6 +738,7 @@
                 note.bodyElement.style.top = tailY + 'px'; note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
             }
 
+            // 【判定ロジック修正】ハイスピ値に左右されないよう絶対時間（秒数差）で一貫してMISS判定を実行
             if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) { note.hit = true; note.element.remove(); countJudge("MISS"); }
             else if(note.type === 'long') {
                 if(!note.hit && timeRemaining < -0.15) { note.hit = true; note.tailHit = true; note.element.remove(); if(note.bodyElement) note.bodyElement.remove(); countJudge("MISS"); }
@@ -752,14 +750,12 @@
         if (gameStarted) requestAnimationFrame(gameUpdate);
     }
 
-    // --- ハイスコアセーブ処理の連動 ---
     function stopGame(showResult) {
         gameStarted = false; if(audioHtml) audioHtml.pause(); pauseTimeOffset = 0;
         if(showResult) {
             const currentSong = SONGS_DATABASE[selectedSongIdx];
             const saveKey = `bocaseca_score_${currentSong.title}_${selectedDiff}`;
             
-            // 既存のスコアより高ければ上書き保存
             const previousScore = parseInt(localStorage.getItem(saveKey)) || 0;
             if (score > previousScore) {
                 localStorage.setItem(saveKey, score);
@@ -771,7 +767,7 @@
             document.getElementById('res-p').textContent = cntPerfect; document.getElementById('res-g').textContent = cntGreat;
             document.getElementById('res-gd').textContent = cntGood; document.getElementById('res-m').textContent = cntMiss;
             resultScreen.style.display = 'flex';
-            renderSelectionMenu(); // セレクト画面の情報更新
+            renderSelectionMenu(); 
         } else { selectScreen.style.display = 'flex'; }
     }
 
@@ -837,6 +833,7 @@
                     if(d < min) { min = d; target = n; } 
                 }
             });
+            // 判定枠は不変（ハイスピの速度変化に関わらず一貫して秒数基準）
             if(target && min < 0.20) { 
                 target.hit = true; 
                 if(target.type !== 'long') target.element.remove(); 
