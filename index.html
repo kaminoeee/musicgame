@@ -1,45 +1,69 @@
-html_admin_game = """<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>ボカロ音ゲープロトタイプ - 譜面エディタ機能付き</title>
+    <title>超直感型 5レーン ボカロ音ゲー＆譜面エディタ</title>
     <style>
         body {
             margin: 0;
-            background-color: #1a1a2e;
+            background-color: #0f0f1a;
             color: #fff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
             display: flex;
             flex-direction: row;
-            align-items: center;
-            justify-content: center;
             height: 100vh;
             overflow: hidden;
         }
-        #game-layout {
+        #main-layout {
             display: flex;
-            gap: 20px;
-            align-items: flex-start;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            gap: 15px;
+        }
+        /* 左側：ゲーム画面 */
+        #game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
         }
         #game-container {
             position: relative;
-            width: 400px;
-            height: 600px;
-            background-color: #16162a;
+            width: 450px;
+            height: 650px;
+            background-color: #121224;
             border: 4px solid #3aa89b;
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 0 20px rgba(58, 168, 155, 0.5);
+            box-shadow: 0 0 25px rgba(58, 168, 155, 0.4);
         }
-        #lane {
+        #lanes-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
             position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .lane {
+            flex: 1;
+            height: 100%;
+            border-right: 1px dashed rgba(255, 255, 255, 0.1);
+            position: relative;
+            background: rgba(255, 255, 255, 0.01);
+        }
+        .lane:last-child { border-right: none; }
+        .lane-key-hint {
+            position: absolute;
+            bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
-            width: 120px;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.03);
-            border-left: 1px dashed rgba(255, 255, 255, 0.2);
-            border-right: 1px dashed rgba(255, 255, 255, 0.2);
+            font-size: 14px;
+            font-weight: bold;
+            color: #555577;
         }
         #judge-line {
             position: absolute;
@@ -47,476 +71,714 @@ html_admin_game = """<!DOCTYPE html>
             left: 0;
             width: 100%;
             height: 6px;
-            background-color: #3aa89b;
-            box-shadow: 0 0 10px #3aa89b;
+            background: linear-gradient(90deg, #3aa89b, #00fff0, #3aa89b);
+            box-shadow: 0 0 15px #00fff0;
+            pointer-events: none;
         }
+        /* ノーツのスタイリング */
         .note {
             position: absolute;
-            left: 140px;
-            width: 120px;
-            height: 20px;
+            width: 90%;
+            left: 5%;
+            height: 18px;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .note-normal {
             background: linear-gradient(90deg, #00fff0, #00aa99);
-            border-radius: 5px;
             box-shadow: 0 0 8px #00fff0;
         }
-        #ui-layer {
+        .note-flick {
+            background: linear-gradient(90deg, #ff007f, #ff00ff);
+            box-shadow: 0 0 10px #ff007f;
+            height: 14px;
+            border-radius: 10px;
+        }
+        .note-long {
+            background: linear-gradient(90deg, #00ff66, #009933);
+            box-shadow: 0 0 8px #00ff66;
+        }
+        .long-body {
             position: absolute;
-            top: 20px;
+            width: 80%;
+            left: 10%;
+            background: rgba(0, 255, 102, 0.3);
+            border-left: 2px solid #00ff66;
+            border-right: 2px solid #00ff66;
+            pointer-events: none;
+        }
+        /* UIレイヤー */
+        #ui-top {
+            position: absolute;
+            top: 15px;
             left: 20px;
-            font-size: 16px;
+            font-size: 18px;
+            font-family: monospace;
             z-index: 10;
         }
         #combo-container {
             position: absolute;
-            top: 40%;
+            top: 35%;
             left: 50%;
             transform: translate(-50%, -50%);
             text-align: center;
             pointer-events: none;
+            z-index: 10;
         }
-        #combo-number {
-            font-size: 48px;
-            font-weight: bold;
-            color: #00fff0;
-            text-shadow: 0 0 10px rgba(0,255,240,0.5);
-        }
-        #judge-text {
-            font-size: 24px;
-            font-weight: bold;
-            color: #fff;
-            height: 30px;
-            text-shadow: 0 0 8px rgba(255,255,255,0.8);
-        }
+        #combo-number { font-size: 54px; font-weight: bold; color: #00fff0; text-shadow: 0 0 12px rgba(0,255,240,0.6); }
+        #judge-text { font-size: 28px; font-weight: bold; height: 35px; text-shadow: 0 0 10px rgba(255,255,255,0.8); }
+        
         #start-screen {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(22, 22, 42, 0.95);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 20;
-            text-align: center;
-            padding: 20px;
-            box-sizing: border-box;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(14, 14, 28, 0.96);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 20; text-align: center; padding: 20px; box-sizing: border-box;
         }
-        button {
-            background: #3aa89b;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 16px;
-            border-radius: 25px;
-            cursor: pointer;
-            box-shadow: 0 0 15px rgba(58, 168, 155, 0.4);
-            transition: 0.2s;
-            margin-top: 15px;
-        }
-        button:hover {
-            background: #00fff0;
-            color: #16162a;
-            box-shadow: 0 0 25px #00fff0;
-        }
-        /* 管理者エディタ用パネル */
-        #admin-panel {
-            display: none;
-            width: 320px;
-            height: 600px;
-            background-color: #1f1f3a;
+        
+        /* 右側：最強エディタ＆管理パネル */
+        #editor-panel {
+            width: 480px;
+            background-color: #16162a;
             border: 2px solid #ff007f;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 15px;
             box-sizing: border-box;
-            box-shadow: 0 0 15px rgba(255, 0, 127, 0.3);
+            display: flex;
             flex-direction: column;
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.2);
         }
-        .admin-title {
-            color: #ff007f;
-            font-size: 18px;
+        .panel-section {
+            background: #1f1f3d;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .section-title {
+            color: #ff007f; font-size: 14px; font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between;
+        }
+        label { font-size: 11px; color: #aaa; display: block; margin-top: 5px; }
+        input, select, textarea {
+            width: 100%; background: #0f0f1a; border: 1px solid #444; color: #fff;
+            padding: 6px; border-radius: 4px; box-sizing: border-box; font-size: 13px;
+        }
+        /* タイムライン視覚化エディタ */
+        #timeline-container {
+            flex: 1;
+            background: #0b0b16;
+            border: 1px solid #333;
+            border-radius: 6px;
+            position: relative;
+            overflow-y: scroll;
+            margin-top: 5px;
+            min-height: 200px;
+        }
+        #timeline-grid {
+            position: relative;
+            width: 100%;
+            height: 3000px; /* 動的に拡張 */
+        }
+        .timeline-line {
+            position: absolute;
+            left: 0; width: 100%; border-bottom: 1px solid #222;
+            color: #444; font-size: 9px; padding-left: 2px; box-sizing: border-box;
+            pointer-events: none;
+        }
+        .timeline-line.beat { border-bottom: 1px dashed #444; color: #666; }
+        .timeline-note {
+            position: absolute;
+            height: 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            text-align: center;
+            font-size: 9px;
+            line-height: 14px;
             font-weight: bold;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #ff007f;
-            padding-bottom: 5px;
+            color: #000;
         }
-        .form-group {
-            margin-bottom: 12px;
+        .tl-normal { background: #00fff0; width: 15%; }
+        .tl-flick { background: #ff007f; width: 15%; }
+        .tl-long { background: #00ff66; width: 15%; }
+        
+        button {
+            background: #3aa89b; color: white; border: none; padding: 10px 20px;
+            font-size: 14px; border-radius: 20px; cursor: pointer; transition: 0.2s;
         }
-        label {
-            display: block;
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 4px;
-        }
-        input[type="text"] {
-            width: 100%;
-            background: #16162a;
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        textarea {
-            width: 100%;
-            height: 120px;
-            background: #16162a;
-            border: 1px solid #444;
-            color: #00fff0;
-            font-family: monospace;
-            padding: 8px;
-            border-radius: 4px;
-            box-sizing: border-box;
-            resize: none;
-        }
-        .info-text {
-            font-size: 11px;
-            color: #999;
-            margin-top: 4px;
-            line-height: 1.4;
+        button:hover { background: #00fff0; color: #121224; box-shadow: 0 0 15px #00fff0; }
+        .btn-pink { background: #ff007f; }
+        .btn-pink:hover { background: #ff66b2; color: #fff; box-shadow: 0 0 15px #ff007f; }
+        
+        .flex-row { display: flex; gap: 8px; margin-top: 5px; }
+        #play-cursor {
+            position: absolute; left: 0; width: 100%; height: 2px; background: red; box-shadow: 0 0 5px red; z-index: 5; pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <div id="game-layout">
+<div id="main-layout">
+    <div id="game-area">
         <div id="game-container">
-            <div id="ui-layer">
-                <div>SCORE: <span id="score">000000</span></div>
+            <div id="ui-top">SCORE: <span id="score">000000</span></div>
+            
+            <div id="lanes-container">
+                <div class="lane" id="lane-0"><span class="lane-key-hint">A</span></div>
+                <div class="lane" id="lane-1"><span class="lane-key-hint">S</span></div>
+                <div class="lane" id="lane-2"><span class="lane-key-hint">Space</span></div>
+                <div class="lane" id="lane-3"><span class="lane-key-hint">K</span></div>
+                <div class="lane" id="lane-4"><span class="lane-key-hint">L</span></div>
             </div>
-
-            <div id="lane"></div>
+            
             <div id="judge-line"></div>
-            <div id="notes-container"></div>
+            <div id="notes-layer"></div>
 
             <div id="combo-container">
                 <div id="judge-text"></div>
                 <div id="combo-number"></div>
-                <div id="combo-label" style="font-size:12px; color:#aaa; display:none;">COMBO</div>
             </div>
 
             <div id="start-screen">
-                <h2 id="song-title-display" style="color: #00fff0; margin: 0 0 10px 0;">メルト (Melt)</h2>
-                <p id="song-sub-display" style="margin:0; font-size:14px; color:#ccc;">作詞・作曲：ryo / 唄：初音ミク</p>
-                <p style="margin-top: 15px; font-size: 13px; color: #a0aec0;">
-                    【操作方法】<br>ノーツが判定線に重なったら<br><strong style="color:#00fff0; font-size:16px;">[SPACEキー]</strong> を叩け！
-                </p>
+                <h2 id="disp-title" style="color: #00fff0; margin: 0;">メルト (Melt) - 5Key Custom</h2>
+                <p id="disp-credit" style="margin: 5px 0; font-size:13px; color:#aaa;">作詞・作曲：ryo / 唄：初音ミク</p>
+                <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; font-size:12px; text-align:left; margin: 15px 0; line-height: 1.6;">
+                    【操作キー】 <strong>A , S , Space , K , L</strong><br>
+                    【ノーツの種類】<br>
+                    <span style="color:#00fff0;">■ 単押し</span>: タイミングよくキーを叩く<br>
+                    <span style="color:#00ff66;">■ 長押し</span>: 終点まで押し続け、終点で離す<br>
+                    <span style="color:#ff007f;">■ 払い(フリック)</span>: 瞬間的に素早く叩く
+                </div>
                 <button id="start-btn">ゲームスタート</button>
-                <div id="admin-tip" style="margin-top:20px; font-size:11px; color:#ff007f; display:none;">
-                    ⚡ 管理者モード有効 ⚡<br>プレイ中に[Enterキー]を押すとその瞬間のノーツを記録！
-                </div>
-            </div>
-        </div>
-
-        <div id="admin-panel">
-            <div class="admin-title">⚙ 楽曲追加＆譜面エディタ</div>
-            
-            <div class="form-group">
-                <label>楽曲タイトル</label>
-                <input type="text" id="music-title" value="メルト (Melt)">
-            </div>
-            
-            <div class="form-group">
-                <label>アーティスト / クレジット</label>
-                <input type="text" id="music-credit" value="作詞・作曲：ryo / 唄：初音ミク">
-            </div>
-
-            <div class="form-group">
-                <label>音源URL (mp3等)</label>
-                <input type="text" id="music-url" placeholder="空欄時は内蔵の合成シンセ音を使用">
-                <div class="info-text">※Dropboxや自分のサーバー等、直接mp3ファイル等へアクセスできるURLを入力。</div>
-            </div>
-
-            <div class="form-group">
-                <label>譜面データ (叩く秒数のリスト)</label>
-                <textarea id="chart-data">[1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 5.35, 5.7, 6.0, 6.5, 7.0, 7.5, 8.0]</textarea>
-                <div class="info-text">カンマ区切りの秒数配列。直接編集も可能です。</div>
-            </div>
-
-            <button id="apply-btn" style="background:#ff007f; width:100%; border-radius:5px; margin-top:5px;">設定をゲームに適用</button>
-            
-            <div style="margin-top:15px; border-top:1px dashed #444; padding-top:10px;">
-                <div style="font-size:12px; color:#ff007f; font-weight:bold;">💡 リアルタイム譜面作成（流し打ち）</div>
-                <div class="info-text" style="color:#ccc; margin-top:5px;">
-                    ゲームをスタートして、音楽に合わせて<strong style="color:#ff007f;">[Enterキー]</strong>を叩くと、そのタイミングの秒数が上の「譜面データ」にリアルタイムで追加されます！叩き終わったら「適用」を押して再度遊べます。
-                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // クエリパラメータのチェック
-        const isAdmin = window.location.search.includes('_admin') || true; // プロトタイプのためデフォルト有効化（説明を簡単にするため、後ほど解説）
-        if (window.location.search.includes('_admin')) {
-            document.getElementById('admin-panel').style.display = 'flex';
-            document.getElementById('admin-tip').style.display = 'block';
+    <div id="editor-panel">
+        <div style="font-size: 16px; font-weight: bold; color: #ff007f; margin-bottom: 10px; border-bottom: 1px solid #ff007f; padding-bottom:4px;">
+            ⚙️ リアルタイム5Keyエディタ & 楽曲管理
+        </div>
+        
+        <div class="panel-section">
+            <div class="section-title">🎵 楽曲プリセット追加・選択</div>
+            <select id="song-select">
+                <option value="melt">メルト (内蔵シンセ / BPM170)</option>
+                <option value="custom">【新規】外部カスタム音源を使用する</option>
+            </select>
+            <div id="custom-song-inputs" style="display:none;">
+                <label>楽曲名</label><input type="text" id="edit-title" value="カスタム楽曲">
+                <label>アーティスト</label><input type="text" id="edit-credit" value="Unknown">
+                <label>音源URL (.mp3直リンク)</label><input type="text" id="edit-url" placeholder="https://example.com/music.mp3">
+                <label>楽曲BPM (エディタのグリッド用)</label><input type="number" id="edit-bpm" value="120">
+            </div>
+        </div>
+
+        <div class="panel-section" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+            <div class="section-title">
+                <span>📝 視覚的タイムライン編集</span>
+                <span style="font-size:11px; color:#aaa;">左クリック:タイプ変更 / 右クリック:削除</span>
+            </div>
+            <div class="flex-row" style="margin-bottom: 5px;">
+                <button id="edit-play-btn" style="font-size:11px; padding:4px 10px;">⏯ 再生/一時停止</button>
+                <select id="edit-speed" style="width:70px; padding:2px;">
+                    <option value="1.0">1.0x 速</option>
+                    <option value="0.75">0.75x 速</option>
+                    <option value="0.5">0.5x 速</option>
+                </select>
+                <button id="clear-chart-btn" class="btn-pink" style="font-size:11px; padding:4px 10px; margin-left:auto;">全削除</button>
+            </div>
+            
+            <div id="timeline-container">
+                <div id="timeline-grid">
+                    <div id="play-cursor"></div>
+                    </div>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">💾 譜面データ (JSON型データ)</div>
+            <textarea id="chart-json-output" style="height: 60px; font-family: monospace; font-size: 10px;" readonly></textarea>
+            <div class="info-text" style="font-size:10px; color:#aaa; margin-top:4px;">
+                ※流し打ち(プレイ中にA,S,Space,K,Lを押す)するとリアルタイムでここに譜面データが追加されます！
+            </div>
+            <button id="apply-editor-btn" class="btn-pink" style="width:100%; margin-top:8px; font-weight:bold;">設定と譜面をゲームに適用</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 楽曲・譜面のデータ構造 ---
+    const songPresets = {
+        melt: {
+            title: "メルト (Melt) - 5Key Custom",
+            credit: "作詞・作曲：ryo / 唄：初音ミク",
+            url: "",
+            bpm: 170,
+            chart: [
+                {lane: 0, time: 1.0, type: "normal"}, {lane: 1, time: 1.5, type: "normal"},
+                {lane: 2, time: 2.0, type: "flick"},  {lane: 3, time: 2.5, type: "normal"},
+                {lane: 4, time: 3.0, type: "long", duration: 1.0},
+                {lane: 2, time: 4.5, type: "flick"},  {lane: 1, time: 5.0, type: "normal"},
+                {lane: 3, time: 5.5, type: "normal"}, {lane: 0, time: 6.0, type: "long", duration: 1.5}
+            ]
+        },
+        custom: { title: "カスタム楽曲", credit: "Unknown", url: "", bpm: 120, chart: [] }
+    };
+
+    let currentSong = JSON.parse(JSON.stringify(songPresets.melt));
+    const KEYS = ['KeyA', 'KeyS', 'Space', 'KeyK', 'KeyL'];
+    const scrollSpeed = 350; 
+    const targetY = 570; 
+
+    // ゲーム状態
+    let gameStarted = false;
+    let audioCtx = null;
+    let audioHtml = null;
+    let startTime = 0;
+    let pauseTimeOffset = 0; // エディタ用一時停止用
+    let isPlayingInEditor = false;
+    let score = 0; let combo = 0;
+    let activeNotes = [];
+    let longPressStates = [false, false, false, false, false];
+
+    // DOM要素
+    const startBtn = document.getElementById('start-btn');
+    const startScreen = document.getElementById('start-screen');
+    const notesLayer = document.getElementById('notes-layer');
+    const scoreEl = document.getElementById('score');
+    const judgeTextEl = document.getElementById('judge-text');
+    const comboNumberEl = document.getElementById('combo-number');
+    const songSelect = document.getElementById('song-select');
+    const customInputs = document.getElementById('custom-song-inputs');
+    const timelineGrid = document.getElementById('timeline-grid');
+    const timelineContainer = document.getElementById('timeline-container');
+    const playCursor = document.getElementById('play-cursor');
+    const jsonOutput = document.getElementById('chart-json-output');
+
+    // --- 初期化処理 ---
+    window.addEventListener('DOMContentLoaded', () => {
+        loadSongConfig(currentSong);
+        initTimeline();
+    });
+
+    songSelect.addEventListener('change', (e) => {
+        if(e.target.value === 'custom') {
+            customInputs.style.display = 'block';
+            currentSong = JSON.parse(JSON.stringify(songPresets.custom));
+        } else {
+            customInputs.style.display = 'none';
+            currentSong = JSON.parse(JSON.stringify(songPresets.melt));
+        }
+        loadSongConfig(currentSong);
+        initTimeline();
+    });
+
+    function loadSongConfig(song) {
+        document.getElementById('disp-title').textContent = song.title;
+        document.getElementById('disp-credit').textContent = song.credit;
+        document.getElementById('edit-title').value = song.title;
+        document.getElementById('edit-credit').value = song.credit;
+        document.getElementById('edit-url').value = song.url;
+        document.getElementById('edit-bpm').value = song.bpm;
+        updateJSONOutput();
+    }
+
+    function updateJSONOutput() {
+        jsonOutput.value = JSON.stringify(currentSong.chart);
+    }
+
+    // --- 視覚的タイムラインエディタの実装 ---
+    const pixelsPerSecond = 100; // 1秒 = 100px
+    
+    function initTimeline() {
+        // グリッドのクリア
+        timelineGrid.querySelectorAll('.timeline-line, .timeline-note').forEach(el => el.remove());
+        
+        const duration = 180; // とりあえず3分分作成
+        timelineGrid.style.height = (duration * pixelsPerSecond) + 'px';
+
+        // 補助線の生成 (1秒ごと ＆ 拍ごと)
+        const bpm = parseFloat(document.getElementById('edit-bpm').value) || 120;
+        const beatInterval = 60 / bpm;
+
+        for(let sec = 0; sec < duration; sec++) {
+            const line = document.createElement('div');
+            line.className = 'timeline-line';
+            line.style.bottom = (sec * pixelsPerSecond) + 'px';
+            line.textContent = sec + 's';
+            timelineGrid.appendChild(line);
         }
 
-        // 内蔵シンセ用BPM設定
-        const BPM = 170;
-        
-        let audioCtx = null;
-        let audioHtml = null; // 外部URL用
-        let isExternalAudio = false;
-
-        let gameStarted = false;
-        let startTime = 0;
-        let score = 0;
-        let combo = 0;
-        let activeNotes = [];
-        let recordedTimes = []; // リアルタイム録音用
-
-        const scrollSpeed = 300; 
-        const targetY = 520;    
-        const spawnY = -20;
-
-        const startBtn = document.getElementById('start-btn');
-        const startScreen = document.getElementById('start-screen');
-        const notesContainer = document.getElementById('notes-container');
-        const scoreEl = document.getElementById('score');
-        const judgeTextEl = document.getElementById('judge-text');
-        const comboNumberEl = document.getElementById('combo-number');
-        const comboLabelEl = document.getElementById('combo-label');
-        
-        // エディタ要素
-        const musicTitleInput = document.getElementById('music-title');
-        const musicCreditInput = document.getElementById('music-credit');
-        const musicUrlInput = document.getElementById('music-url');
-        const chartDataTextarea = document.getElementById('chart-data');
-        const applyBtn = document.getElementById('apply-btn');
-
-        // エディタの設定を適用する処理
-        applyBtn.addEventListener('click', () => {
-            document.getElementById('song-title-display').textContent = musicTitleInput.value;
-            document.getElementById('song-sub-display').textContent = musicCreditInput.value;
-            alert("設定を適用しました！「ゲームスタート」を押して確認してください。");
-        });
-
-        startBtn.addEventListener('click', () => {
-            if (gameStarted) return;
+        // ノーツのプロット
+        currentSong.chart.forEach((note, index) => {
+            const noteEl = document.createElement('div');
+            noteEl.className = `timeline-note tl-${note.type}`;
+            noteEl.style.bottom = (note.time * pixelsPerSecond) + 'px';
+            noteEl.style.left = (10 + note.lane * 18) + '%';
+            noteEl.textContent = note.lane;
+            if(note.type === 'long' && note.duration) {
+                noteEl.style.height = (note.duration * pixelsPerSecond) + 'px';
+                noteEl.textContent = note.lane + " L";
+            }
             
-            // スコアなどのリセット
-            score = 0;
-            combo = 0;
-            updateUI();
-            notesContainer.innerHTML = '';
-            activeNotes = [];
-            recordedTimes = [];
-            judgeTextEl.textContent = '';
-            comboNumberEl.textContent = '';
-            comboLabelEl.style.display = 'none';
+            // 左クリックでタイプ変更
+            noteEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if(note.type === 'normal') { note.type = 'flick'; }
+                else if(note.type === 'flick') { note.type = 'long'; note.duration = 1.0; }
+                else { note.type = 'normal'; delete note.duration; }
+                initTimeline();
+                updateJSONOutput();
+            });
 
-            // オーディオの初期化
-            const url = musicUrlInput.value.trim();
-            if (url) {
-                isExternalAudio = true;
-                if (audioHtml) audioHtml.pause();
-                audioHtml = new Audio(url);
-                audioHtml.crossOrigin = "anonymous";
-                audioHtml.play().then(() => {
-                    startTime = performance.now();
-                    runGame();
-                }).catch(e => {
-                    alert("音楽URLの読み込みに失敗しました。URLが正しいか、クロスドメイン(CORS)が許可されているか確認してください。");
-                });
+            // 右クリックで削除
+            noteEl.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                currentSong.chart.splice(index, 1);
+                initTimeline();
+                updateJSONOutput();
+            });
+
+            timelineGrid.appendChild(noteEl);
+        });
+    }
+
+    // タイムラインをクリックしてノーツ直感追加
+    timelineGrid.addEventListener('click', (e) => {
+        if(gameStarted || isPlayingInEditor) return;
+        const rect = timelineGrid.getBoundingClientRect();
+        const clickY = rect.bottom - e.clientY;
+        const clickX = e.clientX - rect.left;
+        
+        const clickTime = Math.round((clickY / pixelsPerSecond) * 100) / 100;
+        const clickLane = Math.floor((clickX / rect.width) * 5);
+        
+        if(clickLane >= 0 && clickLane < 5 && clickTime >= 0) {
+            currentSong.chart.push({
+                lane: clickLane,
+                time: clickTime,
+                type: 'normal'
+            });
+            // 時間軸順にソート
+            currentSong.chart.sort((a,b) => a.time - b.time);
+            initTimeline();
+            updateJSONOutput();
+        }
+    });
+
+    // --- エディタ側コントロール ---
+    document.getElementById('edit-play-btn').addEventListener('click', () => {
+        if(!isPlayingInEditor) {
+            // エディタ内再生開始
+            isPlayingInEditor = true;
+            startTime = performance.now() - (pauseTimeOffset * 1000);
+            if(currentSong.url) {
+                if(!audioHtml) audioHtml = new Audio(currentSong.url);
+                audioHtml.currentTime = pauseTimeOffset;
+                audioHtml.playbackRate = parseFloat(document.getElementById('edit-speed').value);
+                audioHtml.play().catch(()=>{});
             } else {
-                isExternalAudio = false;
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            requestAnimationFrame(updateEditorTimeline);
+        } else {
+            // 一時停止
+            isPlayingInEditor = false;
+            if(audioHtml) audioHtml.pause();
+            pauseTimeOffset = getCurrentTime();
+        }
+    });
+
+    function updateEditorTimeline() {
+        if(!isPlayingInEditor) return;
+        const curTime = getCurrentTime();
+        const y = curTime * pixelsPerSecond;
+        playCursor.style.bottom = y + 'px';
+        
+        // カーソル位置に合わせて自動スクロール
+        if(y > 100) {
+            timelineContainer.scrollTop = timelineGrid.scrollHeight - y - 150;
+        }
+
+        // 内蔵シンセ簡易再生メロディ
+        if(!currentSong.url && audioCtx) {
+            // 簡易プレビュー用（今回は割愛、流し打ちで音を鳴らします）
+        }
+
+        requestAnimationFrame(updateEditorTimeline);
+    }
+
+    document.getElementById('clear-chart-btn').addEventListener('click', () => {
+        if(confirm("譜面を全削除しますか？")) {
+            currentSong.chart = [];
+            initTimeline();
+            updateJSONOutput();
+        }
+    });
+
+    document.getElementById('apply-editor-btn').addEventListener('click', () => {
+        currentSong.title = document.getElementById('edit-title').value;
+        currentSong.credit = document.getElementById('edit-credit').value;
+        currentSong.url = document.getElementById('edit-url').value;
+        currentSong.bpm = parseFloat(document.getElementById('edit-bpm').value) || 120;
+        loadSongConfig(currentSong);
+        initTimeline();
+        alert("エディタの譜面設定をゲームに適用しました！");
+    });
+
+
+    // --- ゲームプレイコアロジック ---
+    startBtn.addEventListener('click', () => {
+        if (gameStarted) return;
+        
+        score = 0; combo = 0;
+        updateUI();
+        notesLayer.innerHTML = '';
+        activeNotes = [];
+        judgeTextEl.textContent = '';
+        comboNumberEl.textContent = '';
+        startScreen.style.display = 'none';
+        
+        gameStarted = true;
+        isPlayingInEditor = false;
+
+        if (currentSong.url) {
+            if(audioHtml) audioHtml.pause();
+            audioHtml = new Audio(currentSong.url);
+            audioHtml.play().then(() => {
                 startTime = performance.now();
-                scheduleMelody();
-                runGame();
+                buildGameNotes();
+                requestAnimationFrame(gameUpdate);
+            }).catch(e => {
+                alert("音源の読み込みに失敗しました。URLを確認してください。");
+                gameStarted = false;
+                startScreen.style.display = 'flex';
+            });
+        } else {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            startTime = performance.now();
+            buildGameNotes();
+            requestAnimationFrame(gameUpdate);
+        }
+    });
+
+    function getCurrentTime() {
+        if(gameStarted) {
+            if (currentSong.url && audioHtml) return audioHtml.currentTime;
+            return (performance.now() - startTime) / 1000;
+        } else if(isPlayingInEditor) {
+            if (currentSong.url && audioHtml) return audioHtml.currentTime;
+            return (performance.now() - startTime) / 1000 * parseFloat(document.getElementById('edit-speed').value);
+        }
+        return pauseTimeOffset;
+    }
+
+    function buildGameNotes() {
+        currentSong.chart.forEach((note, index) => {
+            const noteEl = document.createElement('div');
+            noteEl.className = `note note-${note.type}`;
+            
+            let longBodyEl = null;
+            if(note.type === 'long' && note.duration) {
+                longBodyEl = document.createElement('div');
+                longBodyEl.className = 'long-body';
+                document.getElementById(`lane-${note.lane}`).appendChild(longBodyEl);
+            }
+
+            document.getElementById(`lane-${note.lane}`).appendChild(noteEl);
+            
+            activeNotes.push({
+                ...note,
+                id: index,
+                element: noteEl,
+                bodyElement: longBodyEl,
+                hit: false,
+                tailHit: false
+            });
+        });
+    }
+
+    function gameUpdate() {
+        if (!gameStarted) return;
+        const curTime = getCurrentTime();
+
+        // エディタの赤いカーソルも同期移動
+        playCursor.style.bottom = (curTime * pixelsPerSecond) + 'px';
+
+        activeNotes.forEach(note => {
+            const timeRemaining = note.time - curTime;
+            
+            // 始点ノーツ位置計算
+            const currentY = targetY - (timeRemaining * scrollSpeed);
+            
+            if(!note.hit) {
+                note.element.style.top = currentY + 'px';
+            } else if(note.type === 'long' && !note.tailHit) {
+                // ロングノーツ押下中は判定線に固定
+                note.element.style.top = targetY + 'px';
+            }
+
+            // ロングノーツの本体（帯）の描画計算
+            if(note.type === 'long' && note.bodyElement) {
+                const tailTimeRemaining = (note.time + note.duration) - curTime;
+                const tailY = targetY - (tailTimeRemaining * scrollSpeed);
+                const headY = note.hit ? targetY : currentY;
+                
+                note.bodyElement.style.top = tailY + 'px';
+                note.bodyElement.style.height = Math.max(0, headY - tailY) + 'px';
+            }
+
+            // スルー（MISS）判定
+            if (note.type !== 'long' && timeRemaining < -0.15 && !note.hit) {
+                note.hit = true;
+                note.element.remove();
+                triggerJudge("MISS", "#ff3333");
+            } else if(note.type === 'long' && !note.hit && timeRemaining < -0.15) {
+                // 始点スルー
+                note.hit = true; note.tailHit = true;
+                note.element.remove(); if(note.bodyElement) note.bodyElement.remove();
+                triggerJudge("MISS", "#ff3333");
+            } else if(note.type === 'long' && note.hit && !note.tailHit) {
+                // 終点スルー判定
+                const tailTimeRemaining = (note.time + note.duration) - curTime;
+                if(tailTimeRemaining < -0.15) {
+                    note.tailHit = true;
+                    note.element.remove(); if(note.bodyElement) note.bodyElement.remove();
+                    triggerJudge("MISS", "#ff3333");
+                }
             }
         });
 
-        // 簡易シンセサイザー音源
-        function playTone(time, freq, duration) {
-            if (!audioCtx) return;
-            let osc = audioCtx.createOscillator();
-            let gain = audioCtx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(freq, time);
-            gain.gain.setValueAtTime(0.15, time);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(time);
-            osc.stop(time + duration);
-        }
+        // 終了検知
+        if (currentSong.url && audioHtml && audioHtml.ended) { stopGame(); }
+        if (gameStarted) requestAnimationFrame(gameUpdate);
+    }
 
-        function scheduleMelody() {
-            const now = audioCtx.currentTime;
-            const melody = [
-                {t: 1.0, f: 659.25}, {t: 1.5, f: 587.33}, {t: 2.0, f: 523.25}, {t: 2.5, f: 440.00},
-                {t: 3.0, f: 392.00}, {t: 3.5, f: 440.00}, {t: 4.0, f: 523.25},
-                {t: 5.0, f: 659.25}, {t: 5.35, f: 659.25}, {t: 5.7, f: 698.46}, {t: 6.0, f: 783.99},
-                {t: 6.5, f: 659.25}, {t: 7.0, f: 587.33}, {t: 7.5, f: 523.25}, {t: 8.0, f: 587.33}
-            ];
-            melody.forEach(note => {
-                playTone(now + note.t, note.f, 0.4);
-                playTone(now + note.t + 8.0, note.f, 0.4);
-            });
-        }
+    function stopGame() {
+        gameStarted = false;
+        startScreen.style.display = 'flex';
+        if(audioHtml) audioHtml.pause();
+        pauseTimeOffset = 0;
+    }
 
-        function runGame() {
-            startScreen.style.display = 'none';
-            gameStarted = true;
+    // --- キーボード入力と最強「流し打ち」録音ロジック ---
+    window.addEventListener('keydown', (e) => {
+        const laneIdx = KEYS.indexOf(e.code);
+        if (laneIdx === -1) return;
+        e.preventDefault();
 
-            // テキストエリアから譜面データを解析して読み込み
-            let noteTimes = [];
-            try {
-                noteTimes = JSON.parse(chartDataTextarea.value);
-            } catch (e) {
-                // JSONパースに失敗した場合はカンマ区切りとして処理
-                noteTimes = chartDataTextarea.value.replace(/[\[\]]/g, '').split(',').map(Number).filter(n => !isNaN(n));
-            }
+        const curTime = Math.round(getCurrentTime() * 100) / 100;
 
-            // ノーツの生成
-            noteTimes.forEach((time, index) => {
-                const noteEl = document.createElement('div');
-                noteEl.className = 'note';
-                notesContainer.appendChild(noteEl);
-                activeNotes.push({
-                    id: index,
-                    targetTime: time,
-                    element: noteEl,
-                    hit: false
-                });
-            });
+        // 【1】ゲームプレイ中またはエディタ再生中の「流し打ち譜面作成」
+        if (gameStarted || isPlayingInEditor) {
+            // シンセ音のフィードバック
+            playSynthTone(440 + laneIdx * 60);
 
-            requestAnimationFrame(update);
-        }
-
-        function getCurrentGameTime() {
-            if (isExternalAudio && audioHtml) {
-                return audioHtml.currentTime;
-            } else {
-                return (performance.now() - startTime) / 1000;
+            if(gameStarted) {
+                // プレイ中の判定処理
+                processKeyJudgement(laneIdx, curTime, 'down');
+            } else if(isPlayingInEditor) {
+                // エディタ再生中の流し打ち自動記録
+                // デフォルトでは単押しとして追加
+                currentSong.chart.push({ lane: laneIdx, time: curTime, type: 'normal' });
+                currentSong.chart.sort((a,b) => a.time - b.time);
+                initTimeline();
+                updateJSONOutput();
             }
         }
+        longPressStates[laneIdx] = true;
+    });
 
-        function update(timestamp) {
-            if (!gameStarted) return;
-
-            const currentTime = getCurrentGameTime();
-
-            activeNotes.forEach(note => {
-                if (note.hit) return;
-
-                const timeRemaining = note.targetTime - currentTime;
-                const currentY = targetY - (timeRemaining * scrollSpeed);
-
-                if (currentY >= spawnY && currentY <= 600) {
-                    note.element.style.top = currentY + 'px';
-                }
-
-                // 通り過ぎたらMISS
-                if (timeRemaining < -0.15 && !note.hit) {
-                    note.hit = true;
-                    note.element.remove();
-                    showJudge("MISS", "#ff3333");
-                    combo = 0;
-                    updateUI();
-                }
-            });
-
-            // 楽曲終了検知
-            if (isExternalAudio && audioHtml && audioHtml.ended) {
-                endGame();
-            }
-
-            if (gameStarted) requestAnimationFrame(update);
+    window.addEventListener('keyup', (e) => {
+        const laneIdx = KEYS.indexOf(e.code);
+        if (laneIdx === -1) return;
+        
+        const curTime = Math.round(getCurrentTime() * 100) / 100;
+        if(gameStarted) {
+            processKeyJudgement(laneIdx, curTime, 'up');
         }
+        longPressStates[laneIdx] = false;
+    });
 
-        function endGame() {
-            gameStarted = false;
-            startScreen.style.display = 'flex';
-            if (audioHtml) audioHtml.pause();
-        }
+    // 判定ロジック
+    function processKeyJudgement(lane, curTime, keyState) {
+        let closestNote = null;
+        let minDiff = Infinity;
 
-        // キー入力
-        window.addEventListener('keydown', (e) => {
-            if (!gameStarted) return;
+        activeNotes.forEach(note => {
+            if (note.lane !== lane) return;
             
-            const currentTime = getCurrentGameTime();
-            
-            // プレイ判定（SPACEキー）
-            if (e.code === 'Space') {
-                let closestNote = null;
-                let minDiff = Infinity;
+            if (note.type === 'long') {
+                if (!note.hit && keyState === 'down') {
+                    const diff = Math.abs(note.time - curTime);
+                    if (diff < minDiff) { minDiff = diff; closestNote = note; }
+                } else if(note.hit && !note.tailHit && keyState === 'up') {
+                    const diff = Math.abs((note.time + note.duration) - curTime);
+                    if (diff < minDiff) { minDiff = diff; closestNote = note; }
+                }
+            } else if (keyState === 'down' && !note.hit) {
+                const diff = Math.abs(note.time - curTime);
+                if (diff < minDiff) { minDiff = diff; closestNote = note; }
+            }
+        });
 
-                activeNotes.forEach(note => {
-                    if (note.hit) return;
-                    const diff = Math.abs(note.targetTime - currentTime);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        closestNote = note;
-                    }
-                });
-
-                if (closestNote && minDiff < 0.2) {
+        if (closestNote && minDiff < 0.20) {
+            if(closestNote.type === 'long') {
+                if(!closestNote.hit) {
+                    // ロング始点ヒット
                     closestNote.hit = true;
+                    calcScore(minDiff, false); // 払いではない
+                } else {
+                    // ロング終点ヒット
+                    closestNote.tailHit = true;
                     closestNote.element.remove();
-
-                    if (minDiff < 0.05) {
-                        showJudge("PERFECT", "#00fff0");
-                        score += 1000 + combo * 10;
-                        combo++;
-                    } else if (minDiff < 0.12) {
-                        showJudge("GREAT", "#ffaa00");
-                        score += 700 + combo * 5;
-                        combo++;
-                    } else {
-                        showJudge("GOOD", "#00ff33");
-                        score += 400;
-                        combo++;
-                    }
-                    updateUI();
+                    if(closestNote.bodyElement) closestNote.bodyElement.remove();
+                    calcScore(minDiff, false);
                 }
-            }
-
-            // リアルタイム譜面作成（Enterキー）
-            if (e.code === 'Enter') {
-                e.preventDefault(); // 画面スクロール防止
-                // 小数点第2位までに丸めて現在時間を記録
-                const recTime = Math.round(currentTime * 100) / 100;
-                recordedTimes.push(recTime);
-                
-                // エディタのテキストエリアをリアルタイム更新
-                chartDataTextarea.value = JSON.stringify(recordedTimes);
-                
-                // 画面上に叩いた瞬間のノーツを一時配置してフィードバックを出す
-                const testNote = document.createElement('div');
-                testNote.className = 'note';
-                testNote.style.top = targetY + 'px';
-                testNote.style.background = '#ff007f';
-                testNote.style.boxShadow = '0 0 10px #ff007f';
-                notesContainer.appendChild(testNote);
-                setTimeout(() => testNote.remove(), 200);
-            }
-        });
-
-        function showJudge(text, color) {
-            judgeTextEl.textContent = text;
-            judgeTextEl.style.color = color;
-            if (combo > 0) {
-                comboNumberEl.textContent = combo;
-                comboLabelEl.style.display = 'block';
             } else {
-                comboNumberEl.textContent = "";
-                comboLabelEl.style.display = 'none';
+                // 単押し・フリックヒット
+                closestNote.hit = true;
+                closestNote.element.remove();
+                calcScore(minDiff, closestNote.type === 'flick');
             }
         }
+    }
 
-        function updateUI() {
-            scoreEl.textContent = String(score).padStart(6, '0');
+    function calcScore(diff, isFlick) {
+        let base = 1000;
+        if (diff < 0.05) {
+            triggerJudge(isFlick ? "FLICK PERFECT!" : "PERFECT", "#00fff0");
+            score += base + combo * 10; combo++;
+        } else if (diff < 0.12) {
+            triggerJudge("GREAT", "#ffaa00");
+            score += base * 0.7 + combo * 5; combo++;
+        } else {
+            triggerJudge("GOOD", "#00ff33");
+            score += base * 0.4; combo++;
         }
-    </script>
+        updateUI();
+    }
+
+    // 効果音シンセ
+    function playSynthTone(freq) {
+        if(!audioCtx) return;
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function triggerJudge(text, color) {
+        judgeTextEl.textContent = text;
+        judgeTextEl.style.color = color;
+        comboNumberEl.textContent = combo > 0 ? combo : "";
+    }
+
+    function updateUI() {
+        scoreEl.textContent = String(score).padStart(6, '0');
+    }
+</script>
 </body>
 </html>
-"""
-
-with open("otoge_with_admin_editor.html", "w", encoding="utf-8") as f:
-    f.write(html_admin_game)
-print("Admin editor prototype game created successfully.")
