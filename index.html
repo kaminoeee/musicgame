@@ -69,7 +69,7 @@
         /* 設定子画面 */
         #config-overlay { display: none; z-index: 30; background: rgba(5,5,10,0.95); }
 
-        /* 右側：エディタ（?_adminがない場合は非表示） */
+        /* 右側：エディタ */
         #editor-panel {
             display: none; width: 480px; background-color: #141424; border: 2px solid #ff007f;
             border-radius: 12px; padding: 15px; box-sizing: border-box;
@@ -272,6 +272,9 @@
     let activeNotes = [];
     let lastEditorPlaybackTime = 0;
 
+    // フリック判定のトラッキング用の状態変数
+    let touchStartPositions = {};
+
     const titleScreen = document.getElementById('title-screen');
     const selectScreen = document.getElementById('select-screen');
     const resultScreen = document.getElementById('result-screen');
@@ -350,7 +353,10 @@
         initTimeline();
     });
     document.getElementById('edit-diff-zone').addEventListener('change', (e) => { editingDiff = e.target.value; initTimeline(); });
-    document.getElementById('edit-song-url').addEventListener('input', (e) => { SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); updateCodeOutput(); });
+    document.getElementById('edit-song-url').addEventListener('input', (e) => { 
+        SONGS_DATABASE[editingSongIdx].url = e.target.value.trim(); 
+        updateCodeOutput(); 
+    });
 
     document.getElementById('add-new-song-btn').addEventListener('click', () => {
         const title = document.getElementById('new-song-title').value.trim() || "新楽曲";
@@ -582,31 +588,92 @@
     function setupTouchControls() {
         for (let l = 0; l < 5; l++) {
             const laneEl = document.getElementById(`lane-${l}`);
+            
+            // タッチ / マウスが押された位置を記録
             const handleDown = (e) => {
                 if (!gameStarted) return;
-                e.preventDefault(); laneEl.classList.add('touch-active'); executeInputTrigger(l, "down");
+                e.preventDefault(); laneEl.classList.add('touch-active');
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                touchStartPositions[l] = { x: clientX, y: clientY, processed: false };
+                
+                executeInputTrigger(l, "down");
             };
+            
+            // 指やマウスが動いた時の処理（フリックの厳密な判定用）
+            const handleMove = (e) => {
+                if (!gameStarted || !touchStartPositions[l] || touchStartPositions[l].processed) return;
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const deltaX = clientX - touchStartPositions[l].x;
+                const deltaY = clientY - touchStartPositions[l].y;
+                const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                
+                // 25ピクセル以上指が動いたら「フリック」とみなす
+                if (moveDistance > 25) {
+                    touchStartPositions[l].processed = true;
+                    executeInputTrigger(l, "flick");
+                }
+            };
+            
             const handleUp = (e) => {
                 if (!gameStarted) return;
-                e.preventDefault(); laneEl.classList.remove('touch-active'); executeInputTrigger(l, "up");
+                e.preventDefault(); laneEl.classList.remove('touch-active');
+                delete touchStartPositions[l];
+                executeInputTrigger(l, "up");
             };
+            
             laneEl.addEventListener('touchstart', handleDown, { passive: false });
+            laneEl.addEventListener('touchmove', handleMove, { passive: false });
             laneEl.addEventListener('touchend', handleUp, { passive: false });
+            
             laneEl.addEventListener('mousedown', handleDown);
+            window.addEventListener('mousemove', (e) => {
+                // レーンを跨いでもフリックが反応するようにwindow追従
+                if(laneEl.classList.contains('touch-active')) handleMove(e);
+            });
             laneEl.addEventListener('mouseup', handleUp);
         }
     }
 
     function executeInputTrigger(laneIdx, type) {
         const curTime = getCurrentTime();
+        
         if(type === "down") {
             playSynthTone(400 + laneIdx * 60);
             let target = null; let min = Infinity;
             activeNotes.forEach(n => {
-                if(n.lane === laneIdx && !n.hit) { const d = Math.abs(n.time - curTime); if(d < min) { min = d; target = n; } }
+                // 単押し、またはロング始点のみをdownで判定（フリックはここでは除外）
+                if(n.lane === laneIdx && !n.hit && n.type !== 'flick') { 
+                    const d = Math.abs(n.time - curTime); 
+                    if(d < min) { min = d; target = n; } 
+                }
             });
-            if(target && min < 0.20) { target.hit = true; if(target.type !== 'long') target.element.remove(); hitJudge(min, target.type==='flick'); }
-        } else {
+            if(target && min < 0.20) { 
+                target.hit = true; 
+                if(target.type !== 'long') target.element.remove(); 
+                hitJudge(min, false); 
+            }
+        } 
+        else if(type === "flick") {
+            let target = null; let min = Infinity;
+            activeNotes.forEach(n => {
+                // フリックノーツのみを狙い撃ち判定
+                if(n.lane === laneIdx && !n.hit && n.type === 'flick') {
+                    const d = Math.abs(n.time - curTime);
+                    if(d < min) { min = d; target = n; }
+                }
+            });
+            if(target && min < 0.20) {
+                target.hit = true;
+                target.element.remove();
+                hitJudge(min, true);
+            }
+        }
+        else if(type === "up") {
             activeNotes.forEach(n => {
                 if(n.lane === laneIdx && n.type === 'long' && n.hit && !n.tailHit) {
                     const d = Math.abs((n.time + n.duration) - curTime); n.tailHit = true;
@@ -621,8 +688,24 @@
         const laneIdx = KEYS.indexOf(e.code); if (laneIdx === -1) return;
         e.preventDefault();
         const targetLane = document.getElementById(`lane-${laneIdx}`);
-        if(targetLane) targetLane.classList.add('touch-active');
-        executeInputTrigger(laneIdx, "down");
+        if(targetLane && !targetLane.classList.contains('touch-active')) {
+            targetLane.classList.add('touch-active');
+            
+            // キーボード操作時は、フリックノーツがそのレーンの最前面にあれば自動でフリック、無ければ単押しとしてトリガー
+            let hasFlickFront = false;
+            const curTime = getCurrentTime();
+            activeNotes.forEach(n => {
+                if(n.lane === laneIdx && !n.hit && n.type === 'flick' && Math.abs(n.time - curTime) < 0.20) {
+                    hasFlickFront = true;
+                }
+            });
+            
+            if(hasFlickFront) {
+                executeInputTrigger(laneIdx, "flick");
+            } else {
+                executeInputTrigger(laneIdx, "down");
+            }
+        }
     });
 
     window.addEventListener('keyup', (e) => {
@@ -634,9 +717,10 @@
     });
 
     function hitJudge(d, isFlick) {
-        if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT":"PERFECT");
+        if(d < 0.05) countJudge(isFlick ? "FLICK PERFECT" : "PERFECT");
         else if(d < 0.12) countJudge("GREAT"); else countJudge("GOOD");
     }
+    
     function countJudge(type) {
         let c = "#fff";
         if(type.includes("PERFECT")) { cntPerfect++; score += 1000 + combo*10; combo++; c="#00fff0"; }
